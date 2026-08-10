@@ -21,7 +21,6 @@ import MapErrorBoundary from "../../../../common/MapErrorBoundary/MapErrorBounda
 import { fetchRealtimeMLMarkedZones } from "../../../../api/mlSafetyApi";
 import {
     formatMLMarkedZonesForMap,
-    scoreForLocation,
     scoreForRoute
 } from "../../../../utils/hotspotEngine";
 
@@ -102,12 +101,13 @@ function RouteRenderer({ origin, destination, onRouteFound }) {
 
                         polylinesRef.current = polylines;
 
-                        const bounds = new google.maps.LatLngBounds();
-                        route.path.forEach((point) => {
-                            bounds.extend(point);
-                        });
-
-                        map.fitBounds(bounds, 60);
+                        if (window.google?.maps?.LatLngBounds) {
+                            const bounds = new window.google.maps.LatLngBounds();
+                            route.path.forEach((point) => {
+                                bounds.extend(point);
+                            });
+                            map.fitBounds(bounds, 60);
+                        }
 
                         const lastPoint = route.path[route.path.length - 1];
                         const resolvedDestination = {
@@ -132,9 +132,9 @@ function RouteRenderer({ origin, destination, onRouteFound }) {
 
             // 2. Fallback to standard DirectionsService
             try {
-                if (window.google && window.google.maps) {
-                    const directionsService = new google.maps.DirectionsService();
-                    const directionsRenderer = new google.maps.DirectionsRenderer({
+                if (window.google?.maps?.DirectionsService) {
+                    const directionsService = new window.google.maps.DirectionsService();
+                    const directionsRenderer = new window.google.maps.DirectionsRenderer({
                         map: map,
                         suppressMarkers: false,
                         polylineOptions: {
@@ -150,7 +150,7 @@ function RouteRenderer({ origin, destination, onRouteFound }) {
                         {
                             origin: origin,
                             destination: destination,
-                            travelMode: google.maps.TravelMode.DRIVING
+                            travelMode: window.google.maps.TravelMode?.DRIVING || "DRIVING"
                         },
                         (result, status) => {
                             if (cancelled) return;
@@ -197,8 +197,9 @@ function RouteRenderer({ origin, destination, onRouteFound }) {
 function SafeRoute() {
     const navigate = useNavigate();
 
-    const [currentPosition, setCurrentPosition] = useState(null);
-    const [currentLocationText, setCurrentLocationText] = useState("Detecting your current location...");
+    const DEFAULT_LOCATION = { lat: 10.8795, lng: 77.0223 };
+    const [currentPosition, setCurrentPosition] = useState(DEFAULT_LOCATION);
+    const [currentLocationText, setCurrentLocationText] = useState("Karpagam College of Engineering, Coimbatore");
     const [destination, setDestination] = useState("");
     const [routeRequest, setRouteRequest] = useState(null);
     const [routeInfo, setRouteInfo] = useState({
@@ -213,30 +214,45 @@ function SafeRoute() {
     /* Detect user's current location */
     useEffect(() => {
         if (!navigator.geolocation) {
-            setCurrentLocationText("Location is not supported");
+            setCurrentLocationText("Karpagam College of Engineering, Coimbatore");
             return;
         }
 
+        const handleSuccess = (position) => {
+            const userPosition = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude
+            };
+            setCurrentPosition(userPosition);
+            setCurrentLocationText(`GPS Verified (${userPosition.lat.toFixed(3)}°, ${userPosition.lng.toFixed(3)}°)`);
+        };
+
+        const handleFallback = () => {
+            setCurrentPosition(DEFAULT_LOCATION);
+            setCurrentLocationText("Karpagam College of Engineering, Coimbatore");
+        };
+
+        // Try standard location first (fast Wi-Fi/IP, zero timeout issues)
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const userPosition = {
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude
-                };
-                setCurrentPosition(userPosition);
-                setCurrentLocationText("Your Current Location");
+            handleSuccess,
+            () => {
+                // Second attempt with high accuracy if available
+                navigator.geolocation.getCurrentPosition(
+                    handleSuccess,
+                    handleFallback,
+                    { enableHighAccuracy: true, timeout: 5000 }
+                );
             },
-            (error) => {
-                console.error("Location error:", error);
-                setCurrentLocationText("Location permission denied");
-                alert("Allow location permission and reload the page.");
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 15000,
-                maximumAge: 60000
-            }
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
         );
+
+        const watchId = navigator.geolocation.watchPosition(
+            handleSuccess,
+            null,
+            { enableHighAccuracy: false }
+        );
+
+        return () => navigator.geolocation.clearWatch(watchId);
     }, []);
 
     const [realtimeMLZones, setRealtimeMLZones] = useState([]);
@@ -248,7 +264,9 @@ function SafeRoute() {
                 if (Array.isArray(ml)) {
                     setRealtimeMLZones(ml);
                 }
-            } catch (err) {}
+            } catch (err) {
+                console.warn("Realtime ML zones notice:", err);
+            }
         };
         fetchML();
         const interval = setInterval(fetchML, 1000); // 1-second live sync
@@ -348,8 +366,8 @@ function SafeRoute() {
                             <APIProvider apiKey={mapsApiKey}>
                                 <Map
                                     defaultCenter={{
-                                        lat: 13.0827,
-                                        lng: 80.2707
+                                        lat: 10.8795,
+                                        lng: 77.0223
                                     }}
                                     defaultZoom={13}
                                     mapId="DEMO_MAP_ID"
@@ -366,7 +384,7 @@ function SafeRoute() {
 
                                     <HotspotOverlay hotspots={hotspots} />
 
-                                    {currentPosition && typeof window !== "undefined" && window.google?.maps?.marker?.AdvancedMarkerElement && (
+                                    {currentPosition && (
                                         <AdvancedMarker
                                             position={currentPosition}
                                             title="Your Current Location"

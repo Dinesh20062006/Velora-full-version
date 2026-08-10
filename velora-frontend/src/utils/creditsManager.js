@@ -16,7 +16,9 @@ export function getCurrentUserKey() {
       const u = JSON.parse(raw);
       return String(u.userId || u.id || u.email || "default_user");
     }
-  } catch (e) {}
+  } catch {
+    // Return default user key on parse failure
+  }
   return "default_user";
 }
 
@@ -28,7 +30,9 @@ export function getAwardCredits(userKey) {
       const val = parseInt(stored, 10);
       return isNaN(val) ? 15 : val;
     }
-  } catch (e) {}
+  } catch {
+    // Return default baseline credits on read error
+  }
   return 15; // Baseline credits
 }
 
@@ -48,7 +52,7 @@ export function getLocalReports(userKey) {
     const list = raw ? JSON.parse(raw) : [];
     if (!activeKey) return list;
     return list.filter((r) => !r.userKey || String(r.userKey).toLowerCase() === String(activeKey).toLowerCase());
-  } catch (e) {
+  } catch {
     return [];
   }
 }

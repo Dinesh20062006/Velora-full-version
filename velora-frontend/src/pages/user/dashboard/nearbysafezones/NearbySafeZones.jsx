@@ -9,10 +9,21 @@ import {
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
-import { APIProvider, Map } from "@vis.gl/react-google-maps";
+import { APIProvider, Map, useMap, AdvancedMarker, Pin } from "@vis.gl/react-google-maps";
 import HotspotOverlay from "../../../../common/HotspotOverlay/HotspotOverlay";
 import HotspotLegend from "../../../../common/HotspotOverlay/HotspotLegend";
 import { generateHotspots, generateSampleSafeZones } from "../../../../utils/hotspotEngine";
+import { useEffect } from "react";
+
+function MapController({ currentPosition }) {
+  const map = useMap();
+  useEffect(() => {
+    if (map && currentPosition) {
+      map.panTo(currentPosition);
+    }
+  }, [map, currentPosition]);
+  return null;
+}
 
 const ICONS = {
   POLICE_STATION: FaShieldAlt,
@@ -63,7 +74,13 @@ function NearbySafeZones({ zones, loading, currentPosition }) {
               fullscreenControl={false}
               zoomControl={false}
             >
+              <MapController currentPosition={currentPosition} />
               <HotspotOverlay hotspots={hotspots} />
+              {currentPosition && (
+                <AdvancedMarker position={currentPosition} title="Your Current Location">
+                  <Pin background="#FF1744" borderColor="#FFFFFF" glyphColor="#FFFFFF" scale={1.3} />
+                </AdvancedMarker>
+              )}
             </Map>
           </APIProvider>
         ) : (

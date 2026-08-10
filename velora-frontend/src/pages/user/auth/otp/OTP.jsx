@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import otpImage from "../../../../assets/images/otp-banner.png";
 import Button from "../../../../common/Button/Button";
 import Input from "../../../../common/Input/Input";
@@ -25,11 +25,6 @@ function OTP() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-
-  useEffect(() => {
-    // Show pop-up alert with OTP when page loads
-    setShowModal(true);
-  }, []);
 
   const handleAutofill = () => {
     const codeArr = currentOtp.split("").slice(0, 6);

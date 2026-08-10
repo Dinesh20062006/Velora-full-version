@@ -34,14 +34,18 @@ export const getPrivacySettings = async () => {
         }
       };
     }
-  } catch (err) {}
+  } catch {
+    /* ignore fallback error */
+  }
 
   try {
     const raw = localStorage.getItem(PRIVACY_SETTINGS_KEY);
     if (raw) {
       return { success: true, data: JSON.parse(raw) };
     }
-  } catch (e) {}
+  } catch {
+    /* ignore local storage error */
+  }
 
   return {
     success: true,
@@ -56,7 +60,9 @@ export const getPrivacySettings = async () => {
 export const updatePrivacySettings = async (payload) => {
   try {
     localStorage.setItem(PRIVACY_SETTINGS_KEY, JSON.stringify(payload));
-  } catch (e) {}
+  } catch {
+    /* ignore local storage error */
+  }
 
   try {
     const body = {
@@ -65,7 +71,7 @@ export const updatePrivacySettings = async (payload) => {
     };
     await client.put("/users/profile", body);
     return { success: true, data: payload };
-  } catch (err) {
+  } catch {
     return { success: true, data: payload };
   }
 };

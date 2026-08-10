@@ -26,7 +26,7 @@ complaintClient.interceptors.request.use((config) => {
       config.headers["X-Velora-User-Id"] = String(uid);
       config.headers["X-Velora-User-Role"] = String(role);
       config.headers["X-Velora-User-Email"] = String(email);
-    } catch (e) {
+    } catch {
       // Ignore
     }
   }
@@ -37,7 +37,7 @@ export const createReport = async (payload) => {
   try {
     const res = await complaintClient.post("/api/complaints", payload);
     return res.data;
-  } catch (err1) {
+  } catch {
     try {
       const res = await client.post("/complaints", payload);
       return res.data;
@@ -75,7 +75,7 @@ export const uploadEvidence = async (reportId, files) => {
         headers: { "Content-Type": "multipart/form-data" },
       });
       return r.data;
-    } catch (err1) {
+    } catch {
       try {
         const formDataFallback = new FormData();
         formDataFallback.append("file", file);
@@ -102,11 +102,11 @@ export const getReportById = async (id) => {
   try {
     const res = await complaintClient.get(`/api/complaints/${id}`);
     return res.data;
-  } catch (err1) {
+  } catch {
     try {
       const res = await client.get(`/complaints/${id}`);
       return res.data;
-    } catch (err2) {
+    } catch {
       return {
         complaintId: id,
         id: id,
@@ -146,7 +146,7 @@ export const getMyReports = async (userId) => {
       }
     });
     return { success: true, data: Array.from(map.values()) };
-  } catch (err1) {
+  } catch {
     try {
       const res = await client.get(pathGateway);
       const rawBackend = Array.isArray(res.data) ? res.data : (res.data?.content || res.data?.data || []);
@@ -159,7 +159,7 @@ export const getMyReports = async (userId) => {
         }
       });
       return { success: true, data: Array.from(map.values()) };
-    } catch (err2) {
+    } catch {
       return { success: true, data: localReports };
     }
   }
@@ -169,11 +169,11 @@ export const deleteIncident = async (id) => {
   try {
     const res = await complaintClient.delete(`/api/complaints/${id}`);
     return res.data;
-  } catch (err1) {
+  } catch {
     try {
       const res = await client.delete(`/complaints/${id}`);
       return res.data;
-    } catch (err2) {
+    } catch {
       return { success: true };
     }
   }

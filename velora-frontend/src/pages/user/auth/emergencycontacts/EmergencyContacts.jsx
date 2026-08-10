@@ -13,32 +13,36 @@ function EmergencyContacts() {
     const [deletingId, setDeletingId] = useState(null);
 
     useEffect(() => {
-        loadContacts();
-    }, []);
-
-    const loadContacts = async () => {
-        setLoading(true);
-        setError("");
-        try {
-            const res = await getEmergencyContacts();
-            const raw = res?.data || res;
-            const list = Array.isArray(raw) ? raw : (raw?.content || []);
-            setContacts(list.map((c) => ({
-                id: c.id,
-                name: c.name,
-                phone: c.phoneNumber || c.phone,
-                relation: c.relationship || c.relation || "Emergency Contact",
-                primary: c.primary || c.isPrimary
-            })));
-        } catch (err) {
-            setError(
-                err?.response?.data?.message ||
-                "Could not load your emergency contacts."
-            );
-        } finally {
-            setLoading(false);
+        let cancelled = false;
+        async function fetchContacts() {
+            setLoading(true);
+            setError("");
+            try {
+                const res = await getEmergencyContacts();
+                if (cancelled) return;
+                const raw = res?.data || res;
+                const list = Array.isArray(raw) ? raw : (raw?.content || []);
+                setContacts(list.map((c) => ({
+                    id: c.id,
+                    name: c.name,
+                    phone: c.phoneNumber || c.phone,
+                    relation: c.relationship || c.relation || "Emergency Contact",
+                    primary: c.primary || c.isPrimary
+                })));
+            } catch (err) {
+                if (!cancelled) {
+                    setError(
+                        err?.response?.data?.message ||
+                        "Could not load your emergency contacts."
+                    );
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
         }
-    };
+        fetchContacts();
+        return () => { cancelled = true; };
+    }, []);
 
     const handleDelete = async (id) => {
         setDeletingId(id);

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import Navbar from "../common/Navbar/Navbar";
 import Sidebar from "../common/Sidebar/Sidebar";
 import "../pages/police/police style/index.css";

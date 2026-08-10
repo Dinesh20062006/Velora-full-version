@@ -168,7 +168,7 @@ export function scoreForLocation(lat, lng, hotspots = []) {
 export function scoreForRoute(origin, destination, hotspots = [], routePath = []) {
   if (!origin) return { score: 95, ...classifyScore(95) };
 
-  let score = 95.0; // Default clean safe score (90-100 range)
+  let score;
   let crossedRed = false;
   let crossedYellow = false;
   let redCrossCount = 0;
@@ -329,9 +329,9 @@ export function formatMLMarkedZonesForMap(markedZones = []) {
  * Deterministically generates realistic sample safe zones around user location
  * whenever live backend safe zones are empty.
  */
-export function generateSampleSafeZones(lat = 13.0827, lng = 80.2707) {
-  const effectiveLat = lat ?? 13.0827;
-  const effectiveLng = lng ?? 80.2707;
+export function generateSampleSafeZones(lat = 10.8795, lng = 77.0223) {
+  const effectiveLat = lat ?? 10.8795;
+  const effectiveLng = lng ?? 77.0223;
 
   return [
     {

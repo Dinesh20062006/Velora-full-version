@@ -30,7 +30,7 @@ client.interceptors.request.use((config) => {
       config.headers["X-User-Id"] = String(uid);
       config.headers["X-User-Role"] = String(role);
       config.headers["X-User-Email"] = String(email);
-    } catch (e) {
+    } catch {
       // Ignore JSON parse errors
     }
   }

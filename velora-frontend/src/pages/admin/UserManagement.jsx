@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import AdminLayout from "./AdminLayout";
 import { getAllUsers, updateUserStatus, addAdminUser, deleteAdminUser } from "../../api/adminApi";
 import { IoPersonAddOutline, IoCloseOutline, IoTrashOutline } from "react-icons/io5";
@@ -16,21 +16,28 @@ function UserManagement() {
     role: "ROLE_USER"
   });
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
   const fetchUsers = async () => {
     setLoading(true);
     try {
       const res = await getAllUsers();
       setUsers(res?.data || []);
-    } catch (e) {
-      console.error("Failed to load users", e);
+    } catch (err) {
+      console.error("Failed to load users", err);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadData() {
+      if (!cancelled) {
+        await fetchUsers();
+      }
+    }
+    loadData();
+    return () => { cancelled = true; };
+  }, []);
 
   const toggleStatus = async (id, currentStatus) => {
     const nextStatus = currentStatus === "ACTIVE" ? "DEACTIVATED" : "ACTIVE";
@@ -39,13 +46,14 @@ function UserManagement() {
       setUsers((prev) =>
         prev.map((u) => (u.id === id ? { ...u, status: nextStatus } : u))
       );
-    } catch (e) {
+    } catch (err) {
+      console.error("Failed to update status:", err);
       alert("Failed to update user account status");
     }
   };
 
-  const handleDeleteUser = async (id, name) => {
-    if (!window.confirm(`Are you sure you want to permanently remove/delete ${name} (${id})?`)) {
+  const handleDeleteUser = async (id) => {
+    if (!window.confirm("Are you sure you want to permanently delete this user account?")) {
       return;
     }
     try {
@@ -55,7 +63,8 @@ function UserManagement() {
       } else {
         setUsers((prev) => prev.filter((u) => u.id !== id));
       }
-    } catch (e) {
+    } catch (err) {
+      console.error("Failed to delete user:", err);
       alert("Could not remove user");
     }
   };
@@ -77,6 +86,7 @@ function UserManagement() {
       setShowModal(false);
       setFormData({ fullName: "", email: "", mobileNumber: "", role: "ROLE_USER" });
     } catch (err) {
+      console.error("Failed to add user:", err);
       alert("Could not add user");
     } finally {
       setSubmitting(false);

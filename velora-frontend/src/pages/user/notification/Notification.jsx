@@ -42,13 +42,31 @@ function Notification() {
     const [error, setError] = useState("");
 
     useEffect(() => {
-        getNotifications()
-            .then((res) => {
-                const list = Array.isArray(res?.data) ? res.data : (res?.data?.content || []);
-                setNotifications(list);
-            })
-            .catch(() => setError("Could not load notifications."))
-            .finally(() => setLoading(false));
+        let isMounted = true;
+
+        const loadNotify = () => {
+            getNotifications()
+                .then((res) => {
+                    if (isMounted) {
+                        const list = Array.isArray(res?.data) ? res.data : (res?.data?.content || []);
+                        setNotifications(list);
+                    }
+                })
+                .catch(() => {
+                    if (isMounted) setError("Could not load notifications.");
+                })
+                .finally(() => {
+                    if (isMounted) setLoading(false);
+                });
+        };
+
+        loadNotify();
+        const interval = setInterval(loadNotify, 3000);
+
+        return () => {
+            isMounted = false;
+            clearInterval(interval);
+        };
     }, []);
 
     const handleClick = async (n) => {

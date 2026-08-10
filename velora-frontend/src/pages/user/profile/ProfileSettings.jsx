@@ -6,15 +6,9 @@ import logo from "../../../assets/logos/velora-trans.png";
 import BackButton from "../../../common/BackButton/BackButton";
 
 import {
-    FiArrowLeft,
     FiMoon,
     FiGlobe,
-    FiAlertTriangle,
-    FiMapPin,
-    FiRadio,
     FiHelpCircle,
-    FiMessageCircle,
-    FiStar,
     FiChevronRight
 } from "react-icons/fi";
 

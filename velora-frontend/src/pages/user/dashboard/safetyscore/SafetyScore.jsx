@@ -1,4 +1,3 @@
-import React from "react";
 import { FaShieldAlt, FaMapMarkerAlt } from "react-icons/fa";
 
 function SafetyScore({ score, label, color, loading, locationName }) {

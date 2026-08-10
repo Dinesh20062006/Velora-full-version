@@ -1,7 +1,5 @@
-/* eslint-disable no-unused-vars */
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import UserLayout from "./UserLayout";
-import { useNavigate } from "react-router-dom";
 import {
   APIProvider,
   Map,
@@ -9,13 +7,11 @@ import {
   Pin,
   useMap
 } from "@vis.gl/react-google-maps";
+import MapErrorBoundary from "../../../common/MapErrorBoundary/MapErrorBoundary";
 import {
   getPoliceDashboardStats,
   getActiveSosAlerts,
-  getAllPoliceIncidents,
-  dispatchUnit,
-  getRegisteredPoliceOfficers,
-  assignPoliceOfficerToCase
+  getAllPoliceIncidents
 } from "../../../api/policeApi";
 
 import {
@@ -40,8 +36,6 @@ function MapCameraController({ center }) {
 }
 
 function Dashboard() {
-  const navigate = useNavigate();
-
   const [stats, setStats] = useState({
     activeSOSAlerts: 3,
     pendingIncidents: 12,
@@ -53,9 +47,7 @@ function Dashboard() {
 
   const [sosList, setSosList] = useState([]);
   const [incidents, setIncidents] = useState([]);
-  const [officers, setOfficers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dispatchingId, setDispatchingId] = useState(null);
 
   // Real-time Police Officer device location state (default to local Coimbatore/Tamil Nadu)
   const [policePos, setPolicePos] = useState({
@@ -79,36 +71,24 @@ function Dashboard() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const [statsRes, sosRes, incRes, offList] = await Promise.allSettled([
+      const [statsRes, sosRes, incRes] = await Promise.allSettled([
         getPoliceDashboardStats(),
         getActiveSosAlerts(),
-        getAllPoliceIncidents(),
-        getRegisteredPoliceOfficers()
+        getAllPoliceIncidents()
       ]);
 
       if (statsRes.status === "fulfilled" && statsRes.value?.data) {
-        const s = statsRes.value.data;
         setStats((prev) => ({
           ...prev,
-          activeSOSAlerts: s.activeSOSAlerts ?? prev.activeSOSAlerts,
-          pendingIncidents: s.pendingIncidents ?? prev.pendingIncidents,
-          resolvedToday: s.resolvedToday ?? prev.resolvedToday
+          ...statsRes.value.data
         }));
       }
 
       if (sosRes.status === "fulfilled" && sosRes.value?.data) {
         setSosList(Array.isArray(sosRes.value.data) ? sosRes.value.data : []);
-      }
-
-      if (offList.status === "fulfilled" && Array.isArray(offList.value)) {
-        setOfficers(offList.value);
       }
 
       if (incRes.status === "fulfilled") {
@@ -130,6 +110,17 @@ function Dashboard() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadData() {
+      if (!cancelled) {
+        await fetchDashboardData();
+      }
+    }
+    loadData();
+    return () => { cancelled = true; };
+  }, []);
 
   const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim();
 
@@ -165,43 +156,45 @@ function Dashboard() {
               </div>
 
               <div style={{ width: "100%", height: "380px", borderRadius: "10px", overflow: "hidden", border: "1px solid #374151" }}>
-                {mapsApiKey ? (
-                  <APIProvider apiKey={mapsApiKey}>
-                    <Map
-                      defaultCenter={policePos}
-                      center={policePos}
-                      defaultZoom={13}
-                      mapId="POLICE_DASHBOARD_MAP"
-                      style={{ width: "100%", height: "100%" }}
-                    >
-                      <MapCameraController center={policePos} />
+                <MapErrorBoundary>
+                  {mapsApiKey ? (
+                    <APIProvider apiKey={mapsApiKey}>
+                      <Map
+                        defaultCenter={policePos}
+                        center={policePos}
+                        defaultZoom={13}
+                        mapId="POLICE_DASHBOARD_MAP"
+                        style={{ width: "100%", height: "100%" }}
+                      >
+                        <MapCameraController center={policePos} />
 
-                      {/* Police Officer Current Device Location Marker */}
-                      <AdvancedMarker position={policePos} title="🚓 Police Patrol Unit (Current Location)">
-                        <Pin background="#2563EB" borderColor="#FFFFFF" glyphColor="#FFFFFF" scale={1.45} />
-                      </AdvancedMarker>
+                        {/* Police Officer Current Device Location Marker */}
+                        <AdvancedMarker position={policePos} title="🚓 Police Patrol Unit (Current Location)">
+                          <Pin background="#2563EB" borderColor="#FFFFFF" glyphColor="#FFFFFF" scale={1.45} />
+                        </AdvancedMarker>
 
-                      {/* Active User SOS Emergency Markers */}
-                      {sosList.map((sos, idx) => {
-                        const lat = typeof sos.location === "object" ? (sos.location?.latitude || 10.9029) : (sos.latitude || 10.9029);
-                        const lng = typeof sos.location === "object" ? (sos.location?.longitude || 77.04167) : (sos.longitude || 77.04167);
-                        return (
-                          <AdvancedMarker
-                            key={sos.id || idx}
-                            position={{ lat: parseFloat(lat), lng: parseFloat(lng) }}
-                            title={`🚨 SOS: ${sos.victimName || 'Citizen User'}`}
-                          >
-                            <Pin background="#EF4444" borderColor="#FFFFFF" glyphColor="#FFFFFF" scale={1.3} />
-                          </AdvancedMarker>
-                        );
-                      })}
-                    </Map>
-                  </APIProvider>
-                ) : (
-                  <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#111827", color: "#9ca3af" }}>
-                    <h3>Map unavailable (Missing VITE_GOOGLE_MAPS_API_KEY)</h3>
-                  </div>
-                )}
+                        {/* Active User SOS Emergency Markers */}
+                        {sosList.map((sos, idx) => {
+                          const lat = typeof sos.location === "object" ? (sos.location?.latitude || 10.9029) : (sos.latitude || 10.9029);
+                          const lng = typeof sos.location === "object" ? (sos.location?.longitude || 77.04167) : (sos.longitude || 77.04167);
+                          return (
+                            <AdvancedMarker
+                              key={sos.id || idx}
+                              position={{ lat: parseFloat(lat), lng: parseFloat(lng) }}
+                              title={`🚨 SOS: ${sos.victimName || 'Citizen User'}`}
+                            >
+                              <Pin background="#EF4444" borderColor="#FFFFFF" glyphColor="#FFFFFF" scale={1.3} />
+                            </AdvancedMarker>
+                          );
+                        })}
+                      </Map>
+                    </APIProvider>
+                  ) : (
+                    <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#111827", color: "#9ca3af" }}>
+                      <h3>Map unavailable (Missing VITE_GOOGLE_MAPS_API_KEY)</h3>
+                    </div>
+                  )}
+                </MapErrorBoundary>
               </div>
             </div>
 

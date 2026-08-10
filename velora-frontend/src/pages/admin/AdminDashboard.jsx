@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import AdminLayout from "./AdminLayout";
 import { getAdminDashboardStats, getSystemHealth, getAdminAnalytics } from "../../api/adminApi";
 import {
@@ -33,14 +33,8 @@ function AdminDashboard() {
   });
 
   const [analytics, setAnalytics] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchAdminData();
-  }, []);
 
   const fetchAdminData = async () => {
-    setLoading(true);
     try {
       const [statsRes, healthRes, analyticsRes] = await Promise.allSettled([
         getAdminDashboardStats(),
@@ -49,20 +43,29 @@ function AdminDashboard() {
       ]);
 
       if (statsRes.status === "fulfilled" && statsRes.value?.data) {
-        setStats(statsRes.value.data);
+        setStats((prev) => ({ ...prev, ...statsRes.value.data }));
       }
       if (healthRes.status === "fulfilled" && healthRes.value?.data) {
-        setHealth(healthRes.value.data);
+        setHealth((prev) => ({ ...prev, ...healthRes.value.data }));
       }
       if (analyticsRes.status === "fulfilled" && analyticsRes.value?.data) {
         setAnalytics(analyticsRes.value.data);
       }
-    } catch (e) {
-      console.error("Admin dashboard fetch error:", e);
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.error("Error fetching admin dashboard data:", err);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadData() {
+      if (!cancelled) {
+        await fetchAdminData();
+      }
+    }
+    loadData();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <AdminLayout>

@@ -1,13 +1,6 @@
 import axios from "axios";
 import client from "./client";
 
-const COMPLAINT_SERVICE_URL = import.meta.env.VITE_COMPLAINT_SERVICE_URL || "http://localhost:8088";
-const complaintClient = axios.create({
-  baseURL: COMPLAINT_SERVICE_URL,
-  headers: { "Content-Type": "application/json" },
-  timeout: 5000,
-});
-
 export const getAdminDashboardStats = async () => {
   const users = getStoredRegisteredUsers();
   const totalUsers = users.length || 11;
@@ -29,13 +22,15 @@ export const getAdminDashboardStats = async () => {
         }
       };
     }
-  } catch (err1) {
+  } catch {
     try {
       const direct = await axios.get("http://localhost:8087/api/v1/admin/dashboard/stats");
       if (direct?.data?.data) {
         return direct.data;
       }
-    } catch (err2) {}
+    } catch {
+      /* ignore fallback error */
+    }
   }
 
   return {
@@ -91,7 +86,9 @@ export const getStoredRegisteredUsers = () => {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length >= REAL_DB_USERS.length) return parsed;
     }
-  } catch (e) {}
+  } catch {
+    /* ignore local storage parse error */
+  }
   localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(REAL_DB_USERS));
   return REAL_DB_USERS;
 };
@@ -109,7 +106,7 @@ export const getAllUsers = async () => {
       });
       return { data: Array.from(map.values()) };
     }
-  } catch (err) {
+  } catch {
     try {
       const direct = await axios.get("http://localhost:8087/api/v1/admin/users");
       const list = Array.isArray(direct.data) ? direct.data : (direct.data?.data || []);
@@ -121,7 +118,9 @@ export const getAllUsers = async () => {
         });
         return { data: Array.from(map.values()) };
       }
-    } catch (e) {}
+    } catch {
+      /* ignore direct fetch error */
+    }
   }
   return { data: localList };
 };
@@ -142,11 +141,15 @@ export const addAdminUser = async (userPayload) => {
   const updatedList = [newUser, ...currentUsers];
   try {
     localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(updatedList));
-  } catch (e) {}
+  } catch {
+    /* ignore local storage error */
+  }
 
   try {
     await client.post("/admin/users", newUser);
-  } catch (e) {}
+  } catch {
+    /* ignore backend post error */
+  }
 
   return { success: true, data: newUser, users: updatedList };
 };
@@ -156,11 +159,15 @@ export const updateUserStatus = async (id, status) => {
   const updatedList = currentUsers.map((u) => (u.id === id ? { ...u, status } : u));
   try {
     localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(updatedList));
-  } catch (e) {}
+  } catch {
+    /* ignore local storage error */
+  }
 
   try {
     await client.put(`/admin/users/${id}/status`, { status });
-  } catch (e) {}
+  } catch {
+    /* ignore backend update error */
+  }
 
   return { success: true, status };
 };
@@ -170,14 +177,18 @@ export const deleteAdminUser = async (id) => {
   const updatedList = currentUsers.filter((u) => u.id !== id);
   try {
     localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(updatedList));
-  } catch (e) {}
+  } catch {
+    /* ignore local storage error */
+  }
 
   try {
     await client.delete(`/admin/users/${id}`);
-  } catch (e) {
+  } catch {
     try {
       await axios.delete(`http://localhost:8087/api/v1/admin/users/${id}`);
-    } catch (e2) {}
+    } catch {
+      /* ignore direct delete error */
+    }
   }
 
   return { success: true, users: updatedList };
@@ -188,7 +199,7 @@ export const getAdminSafeZones = () =>
     try {
       const res = await axios.get("http://localhost:8087/api/v1/admin/safe-zones");
       return res.data;
-    } catch (e) {
+    } catch {
       return { data: [] };
     }
   });
@@ -197,15 +208,15 @@ export const addAdminSafeZone = async (payload) => {
   try {
     const res = await client.post("/admin/safe-zones", payload);
     return res.data;
-  } catch (err) {
+  } catch {
     try {
       const direct = await axios.post("http://localhost:8087/api/v1/admin/safe-zones", payload);
       return direct.data;
-    } catch (e1) {
+    } catch {
       try {
         const safety = await axios.post("http://localhost:8083/api/v1/safety/safe-zones", payload);
         return safety.data;
-      } catch (e2) {
+      } catch {
         return { success: true };
       }
     }
@@ -219,15 +230,15 @@ export const addAdminMLZone = async (payload) => {
   try {
     const res = await client.post("/admin/ml-zones", payload);
     return res.data;
-  } catch (err) {
+  } catch {
     try {
       const direct = await axios.post("http://localhost:8087/api/v1/admin/ml-zones", payload);
       return direct.data;
-    } catch (e1) {
+    } catch {
       try {
         const safety = await axios.post("http://localhost:8083/api/v1/safety/safe-zones", payload);
         return safety.data;
-      } catch (e2) {
+      } catch {
         return { success: true };
       }
     }

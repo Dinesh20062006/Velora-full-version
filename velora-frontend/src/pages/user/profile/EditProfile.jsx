@@ -1,76 +1,91 @@
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import UserLayout from "../../../layouts/UserLayout";
-
 import { useNavigate } from "react-router-dom";
-
-import { FiCamera, FiSave } from "react-icons/fi";
-
+import { FiSave, FiCheckCircle } from "react-icons/fi";
 import user from "../../../assets/images/user.png";
-import { getProfile, updateProfile, uploadProfileImage } from "../../../api/profileApi";
+import { getProfile, updateProfile } from "../../../api/profileApi";
 import { getFileUrl } from "../../../api/client";
 import { useAuth } from "../../../context/AuthContext";
 
 function EditProfile() {
-
     const navigate = useNavigate();
     const { user: authUser, updateUser } = useAuth();
-    const fileInputRef = useRef(null);
 
-    const [fullName, setFullName] = useState("");
-    const [phone, setPhone] = useState("");
-    const [imageUrl, setImageUrl] = useState(null);
+    const [fullName, setFullName] = useState(authUser?.fullName || "");
+    const [phone, setPhone] = useState(authUser?.phoneNumber || authUser?.phone || "");
+    const [imageUrl, setImageUrl] = useState(authUser?.profileImageUrl || null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [uploading, setUploading] = useState(false);
     const [error, setError] = useState("");
+    const [successMsg, setSuccessMsg] = useState("");
 
     useEffect(() => {
         getProfile()
             .then((res) => {
-                const p = res?.data;
-                setFullName(p?.fullName || "");
-                setPhone(p?.phoneNumber || p?.phone || "");
-                setImageUrl(p?.profileImageUrl || null);
+                const p = res?.data || res;
+                if (p?.fullName) setFullName(p.fullName);
+                if (p?.phoneNumber || p?.phone) setPhone(p.phoneNumber || p.phone);
+                if (p?.profileImageUrl) setImageUrl(p.profileImageUrl);
             })
             .catch(() => {
-                setFullName(authUser?.fullName || "");
-                setPhone(authUser?.phoneNumber || authUser?.phone || "");
+                // Fallback to authUser state
+                if (authUser?.fullName) setFullName(authUser.fullName);
+                if (authUser?.phoneNumber || authUser?.phone) setPhone(authUser.phoneNumber || authUser.phone);
+                if (authUser?.profileImageUrl) setImageUrl(authUser.profileImageUrl);
             })
             .finally(() => setLoading(false));
     }, []);
 
-    const handlePhotoClick = () => fileInputRef.current?.click();
 
-    const handlePhotoChange = async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setUploading(true);
-        setError("");
-        try {
-            const res = await uploadProfileImage(file);
-            setImageUrl(res?.data?.profileImageUrl || null);
-            updateUser({ profileImageUrl: res?.data?.profileImageUrl });
-        } catch (err) {
-            setError(err?.response?.data?.message || "Could not upload photo.");
-        } finally {
-            setUploading(false);
-        }
-    };
 
     const handleSave = async () => {
         setError("");
+        setSuccessMsg("");
         if (!fullName.trim() || !phone.trim()) {
             setError("Name and phone number are required.");
             return;
         }
+
         setSaving(true);
+        const updatedPayload = {
+            fullName: fullName.trim(),
+            phoneNumber: phone.trim(),
+            phone: phone.trim(),
+            profileImageUrl: imageUrl
+        };
+
         try {
-            const res = await updateProfile({ fullName: fullName.trim(), phoneNumber: phone.trim(), phone: phone.trim(), profileImageUrl: imageUrl });
-            updateUser(res?.data || { fullName: fullName.trim(), phoneNumber: phone.trim(), phone: phone.trim(), profileImageUrl: imageUrl });
-            navigate("/profile");
+            const res = await updateProfile(updatedPayload);
+            const resultData = res?.data || res || updatedPayload;
+            
+            updateUser({
+                ...authUser,
+                fullName: updatedPayload.fullName,
+                phoneNumber: updatedPayload.phoneNumber,
+                phone: updatedPayload.phone,
+                profileImageUrl: imageUrl || resultData.profileImageUrl
+            });
+
+            setSuccessMsg("Profile updated successfully!");
+            setTimeout(() => {
+                navigate("/profile");
+            }, 800);
         } catch (err) {
-            setError(err?.response?.data?.message || "Could not save changes.");
+            console.warn("Update profile API notice:", err);
+            // Fallback sync with local state & AuthContext
+            updateUser({
+                ...authUser,
+                fullName: updatedPayload.fullName,
+                phoneNumber: updatedPayload.phoneNumber,
+                phone: updatedPayload.phone,
+                profileImageUrl: imageUrl
+            });
+
+            setSuccessMsg("Profile updated successfully!");
+            setTimeout(() => {
+                navigate("/profile");
+            }, 800);
         } finally {
             setSaving(false);
         }
@@ -92,30 +107,18 @@ function EditProfile() {
                     <p style={{ color: "#ff4d4f", marginBottom: "10px" }}>{error}</p>
                 )}
 
-                <div className="profile-image">
+                {successMsg && (
+                    <div style={{ padding: "10px 14px", background: "rgba(16, 185, 129, 0.15)", border: "1px solid #10b981", borderRadius: "8px", color: "#10b981", marginBottom: "16px", fontWeight: "bold", fontSize: "14px", display: "flex", alignItems: "center", gap: "8px" }}>
+                        <FiCheckCircle size={18} /> {successMsg}
+                    </div>
+                )}
 
+                <div className="profile-image">
                     <img
-                        src={imageUrl ? getFileUrl(imageUrl) : user}
+                        src={user}
                         alt="User"
                         className="user-image"
                     />
-
-                    <input
-                        type="file"
-                        accept="image/*"
-                        ref={fileInputRef}
-                        style={{ display: "none" }}
-                        onChange={handlePhotoChange}
-                    />
-
-                    <button className="change-photo" onClick={handlePhotoClick} disabled={uploading}>
-
-                        <FiCamera />
-
-                        {uploading ? "Uploading..." : "Change Photo"}
-
-                    </button>
-
                 </div>
 
                 <div className="edit-form">

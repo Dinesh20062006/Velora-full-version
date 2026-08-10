@@ -114,100 +114,96 @@ function NavigationRoute({
                 }
 
                 const route = result.routes?.[0];
+                if (route && route.path?.length) {
+                    const polylines = route.createPolylines({
+                        polylineOptions: {
+                            strokeColor: "#6C63FF",
+                            strokeOpacity: 1,
+                            strokeWeight: 7
+                        }
+                    });
 
-                if (!route) {
-                    alert("No navigation route found.");
+                    polylines.forEach((polyline) => {
+                        polyline.setMap(map);
+                    });
+
+                    polylinesRef.current = polylines;
+
+                    if (route.viewport) {
+                        map.fitBounds(route.viewport, 60);
+                    }
+
+                    const lastPoint = route.path[route.path.length - 1];
+                    resolvedDestination = {
+                        lat: typeof lastPoint.lat === "function" ? lastPoint.lat() : lastPoint.lat,
+                        lng: typeof lastPoint.lng === "function" ? lastPoint.lng() : lastPoint.lng
+                    };
+                    setDestinationPosition(resolvedDestination);
+
+                    const firstStep = route.legs?.[0]?.steps?.[0];
+                    let nextDistance = "";
+                    if (firstStep?.distanceMeters != null) {
+                        nextDistance = firstStep.distanceMeters >= 1000
+                            ? `${(firstStep.distanceMeters / 1000).toFixed(1)} km`
+                            : `${Math.round(firstStep.distanceMeters)} m`;
+                    }
+
+                    onRouteReady({
+                        distance: route.distanceMeters != null ? `${(route.distanceMeters / 1000).toFixed(1)} km` : "--",
+                        duration: route.durationMillis != null ? `${Math.ceil(route.durationMillis / 60000)} min` : "--",
+                        nextInstruction: firstStep?.instructions || "Continue on the selected route",
+                        nextDistance,
+                        destinationPosition: resolvedDestination
+                    });
                     return;
                 }
-
-                const polylines = route.createPolylines({
-                    polylineOptions: {
-                        strokeColor: "#6C63FF",
-                        strokeOpacity: 1,
-                        strokeWeight: 7
-                    }
-                });
-
-                polylines.forEach((polyline) => {
-                    polyline.setMap(map);
-                });
-
-                polylinesRef.current = polylines;
-
-                /* Show the complete route */
-                if (route.viewport) {
-                    map.fitBounds(route.viewport, 60);
-                }
-
-                /* Destination is the last route point */
-                const lastPoint =
-                    route.path?.[route.path.length - 1];
-
-                if (lastPoint) {
-                    resolvedDestination = {
-                        lat:
-                            typeof lastPoint.lat === "function"
-                                ? lastPoint.lat()
-                                : lastPoint.lat,
-
-                        lng:
-                            typeof lastPoint.lng === "function"
-                                ? lastPoint.lng()
-                                : lastPoint.lng
-                    };
-
-                    setDestinationPosition(resolvedDestination);
-                }
-
-                /* Get the first navigation instruction */
-                const firstStep =
-                    route.legs?.[0]?.steps?.[0];
-
-                let nextDistance = "";
-
-                if (firstStep?.distanceMeters != null) {
-                    nextDistance =
-                        firstStep.distanceMeters >= 1000
-                            ? `${(
-                                  firstStep.distanceMeters / 1000
-                              ).toFixed(1)} km`
-                            : `${Math.round(
-                                  firstStep.distanceMeters
-                              )} m`;
-                }
-
-                onRouteReady({
-                    distance:
-                        route.distanceMeters != null
-                            ? `${(
-                                  route.distanceMeters / 1000
-                              ).toFixed(1)} km`
-                            : "--",
-
-                    duration:
-                        route.durationMillis != null
-                            ? `${Math.ceil(
-                                  route.durationMillis / 60000
-                              )} min`
-                            : "--",
-
-                    nextInstruction:
-                        firstStep?.instructions ||
-                        "Continue on the selected route",
-
-                    nextDistance,
-
-                    destinationPosition: resolvedDestination
-                });
             } catch (error) {
-                console.error(
-                    "Navigation route error:",
-                    error
-                );
+                console.warn("Routes V2 error, trying DirectionsService fallback...", error);
+            }
 
-                alert(
-                    "Unable to load navigation. Check the browser console."
-                );
+            // Fallback to DirectionsService
+            try {
+                if (window.google?.maps?.DirectionsService) {
+                    const directionsService = new window.google.maps.DirectionsService();
+                    const directionsRenderer = new window.google.maps.DirectionsRenderer({
+                        map: map,
+                        suppressMarkers: false,
+                        polylineOptions: {
+                            strokeColor: "#6C63FF",
+                            strokeOpacity: 0.9,
+                            strokeWeight: 6
+                        }
+                    });
+
+                    directionsService.route(
+                        {
+                            origin: origin,
+                            destination: destination,
+                            travelMode: window.google.maps.TravelMode?.DRIVING || "DRIVING"
+                        },
+                        (result, status) => {
+                            if (cancelled) return;
+                            if (status === "OK" && result?.routes?.[0]) {
+                                directionsRenderer.setDirections(result);
+                                const leg = result.routes[0].legs[0];
+                                const destPos = {
+                                    lat: leg.end_location.lat(),
+                                    lng: leg.end_location.lng()
+                                };
+                                setDestinationPosition(destPos);
+                                onRouteReady({
+                                    distance: leg.distance?.text || "--",
+                                    duration: leg.duration?.text || "--",
+                                    nextInstruction: leg.steps?.[0]?.instructions?.replace(/<[^>]*>?/gm, '') || "Proceed to destination",
+                                    nextDistance: leg.steps?.[0]?.distance?.text || "",
+                                    destinationPosition: destPos
+                                });
+                            }
+                        }
+                    );
+                }
+            } catch (fallbackErr) {
+                console.error("Directions fallback error:", fallbackErr);
             }
         };
 
@@ -279,7 +275,9 @@ function Navigation() {
                 if (Array.isArray(ml)) {
                     setRealtimeMLZones(ml);
                 }
-            } catch (err) {}
+            } catch (err) {
+                console.warn("Live ML sync notice:", err);
+            }
         };
         fetchML();
         const interval = setInterval(fetchML, 1000); // 1-second live sync
@@ -368,7 +366,7 @@ function Navigation() {
                     <h1>Navigation</h1>
                 </div>
 
-                <div className="navigation-map-card">
+                <div className="navigation-map-card" style={{ width: "100%", height: "450px", borderRadius: "12px", overflow: "hidden", border: "1px solid #374151", marginBottom: "24px", position: "relative" }}>
                     <MapErrorBoundary>
                         {hasMapsApiKey ? (
                             <APIProvider apiKey={mapsApiKey}>
@@ -388,7 +386,7 @@ function Navigation() {
 
                                     <HotspotOverlay hotspots={hotspots} />
 
-                                    {currentPosition && typeof window !== "undefined" && window.google?.maps?.marker?.AdvancedMarkerElement && (
+                                    {currentPosition && (
                                         <AdvancedMarker
                                             position={currentPosition}
                                             title="Your Current Location"

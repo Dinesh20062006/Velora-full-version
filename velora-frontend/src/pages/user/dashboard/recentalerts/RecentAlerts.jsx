@@ -34,19 +34,21 @@ const DEFAULT_TWO_ALERTS = [
 
 function RecentAlerts({ alerts: propAlerts, loading: propLoading }) {
   const navigate = useNavigate();
-  const [alerts, setAlerts] = useState([]);
+  const [alerts, setAlerts] = useState(
+    Array.isArray(propAlerts) && propAlerts.length > 0 ? propAlerts : []
+  );
   const [loading, setLoading] = useState(propLoading ?? false);
 
   useEffect(() => {
-    if (propAlerts && Array.isArray(propAlerts) && propAlerts.length > 0) {
-      setAlerts(propAlerts);
-      setLoading(false);
+    let cancelled = false;
+
+    if (Array.isArray(propAlerts) && propAlerts.length > 0) {
       return;
     }
 
-    setLoading(true);
     getNotifications()
       .then((res) => {
+        if (cancelled) return;
         const list = Array.isArray(res?.data) ? res.data : (res?.data?.content || []);
         if (list.length > 0) {
           setAlerts(list);
@@ -55,11 +57,13 @@ function RecentAlerts({ alerts: propAlerts, loading: propLoading }) {
         }
       })
       .catch(() => {
-        setAlerts(DEFAULT_TWO_ALERTS);
+        if (!cancelled) setAlerts(DEFAULT_TWO_ALERTS);
       })
       .finally(() => {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       });
+
+    return () => { cancelled = true; };
   }, [propAlerts]);
 
   // Display recent 2 alerts on the Home page

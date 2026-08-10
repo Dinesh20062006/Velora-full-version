@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { FaBrain, FaClock, FaLightbulb, FaShieldAlt, FaExclamationTriangle, FaSync, FaMapMarkerAlt } from "react-icons/fa";
+import { useEffect, useState } from "react";
+import { FaBrain, FaClock, FaSync, FaMapMarkerAlt } from "react-icons/fa";
 import { predictMLSafetyScore } from "../../../../api/mlSafetyApi";
 
 function MLSafetyCard({ lat, lng }) {
@@ -19,7 +19,24 @@ function MLSafetyCard({ lat, lng }) {
   };
 
   useEffect(() => {
-    runMLPrediction();
+    let cancelled = false;
+    async function loadPrediction() {
+      setLoading(true);
+      try {
+        const res = await predictMLSafetyScore(lat, lng);
+        if (!cancelled) {
+          setMlData(res?.data || null);
+        }
+      } catch (err) {
+        console.error("ML Prediction Error:", err);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+    loadPrediction();
+    return () => { cancelled = true; };
   }, [lat, lng]);
 
   const color = mlData?.color || "#00E676";

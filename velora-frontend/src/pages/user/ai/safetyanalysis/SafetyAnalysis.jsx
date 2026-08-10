@@ -8,10 +8,7 @@ import {
   FaExclamationTriangle,
   FaMapMarkerAlt,
   FaChartBar,
-  FaLightbulb,
-  FaSync,
-  FaLock,
-  FaTaxi
+  FaSync
 } from "react-icons/fa";
 
 import { predictMLSafetyScore, fetchRealtimeMLMarkedZones } from "../../../../api/mlSafetyApi";
@@ -27,8 +24,8 @@ function SafetyAnalysis() {
 
   const fetchAllSafetyData = async (lat, lng) => {
     setLoading(true);
-    const effectiveLat = lat ?? 13.0827;
-    const effectiveLng = lng ?? 80.2707;
+    const effectiveLat = lat ?? 10.8795;
+    const effectiveLng = lng ?? 77.0223;
     setCurrentPosition({ lat: effectiveLat, lng: effectiveLng });
 
     try {
@@ -57,15 +54,21 @@ function SafetyAnalysis() {
   };
 
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => fetchAllSafetyData(pos.coords.latitude, pos.coords.longitude),
-        () => fetchAllSafetyData(undefined, undefined),
-        { timeout: 5000 }
-      );
-    } else {
-      fetchAllSafetyData(undefined, undefined);
-    }
+    let cancelled = false;
+    const initFetch = () => {
+      if (cancelled) return;
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => !cancelled && fetchAllSafetyData(pos.coords.latitude, pos.coords.longitude),
+          () => !cancelled && fetchAllSafetyData(undefined, undefined),
+          { timeout: 5000 }
+        );
+      } else {
+        fetchAllSafetyData(undefined, undefined);
+      }
+    };
+    initFetch();
+    return () => { cancelled = true; };
   }, []);
 
   const color = mlData?.color || "#00E676";
@@ -78,14 +81,14 @@ function SafetyAnalysis() {
   const locationText = mlData?.locationLabel || (currentPosition ? `${currentPosition.lat.toFixed(3)}° N, ${currentPosition.lng.toFixed(3)}° E` : "Chennai Region");
 
   // Vectors for Hexagonal Area Radar Chart
-  const radarVectors = [
+  const radarVectors = useMemo(() => [
     { label: "Lighting", score: mlData?.featureBreakdown?.lightingScore ?? 75 },
     { label: "Police", score: mlData?.featureBreakdown?.policeScore ?? 82 },
     { label: "Crowd", score: mlData?.featureBreakdown?.crowdScore ?? 78 },
     { label: "Transport", score: mlData?.featureBreakdown?.transportScore ?? 80 },
     { label: "CCTV", score: mlData?.featureBreakdown?.cctvScore ?? 68 },
     { label: "Response", score: mlData?.featureBreakdown?.responseScore ?? 90 }
-  ];
+  ], [mlData]);
 
   // SVG Hexagon Radar Geometry Calculation
   const radarPoints = useMemo(() => {

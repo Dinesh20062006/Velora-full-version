@@ -6,7 +6,6 @@ import BackButton from "../../../common/BackButton/BackButton";
 import {
   FiMap,
   FiMapPin,
-  FiBell,
   FiShield,
 } from "react-icons/fi";
 
@@ -19,7 +18,6 @@ function PrivacySettings() {
     shareWithContacts: true,
     anonymousReportingDefault: false,
   });
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     getPrivacySettings()
@@ -28,8 +26,7 @@ function PrivacySettings() {
           setSettings(res.data);
         }
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => {});
   }, []);
 
   const toggle = async (key) => {

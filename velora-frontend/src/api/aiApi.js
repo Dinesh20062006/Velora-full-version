@@ -20,7 +20,7 @@ export const sendChatMessage = async (message) => {
     if (r?.data?.data?.message || r?.data?.message) {
       return r.data;
     }
-  } catch (e1) {
+  } catch {
     // continue
   }
 
@@ -30,7 +30,7 @@ export const sendChatMessage = async (message) => {
     if (r?.data?.data?.message || r?.data?.message) {
       return r.data;
     }
-  } catch (e2) {
+  } catch {
     // continue
   }
 
@@ -59,7 +59,7 @@ export const sendChatMessage = async (message) => {
           }
         };
       }
-    } catch (geminiErr) {
+    } catch {
       // continue to fallback
     }
   }

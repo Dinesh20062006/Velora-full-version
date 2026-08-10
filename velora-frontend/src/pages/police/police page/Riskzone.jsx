@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAllUsers } from "../../../api/adminApi";
 import { getActiveSosAlerts } from "../../../api/policeApi";
@@ -18,7 +18,7 @@ function MapBoundsController({ policePos, sosAlertsList }) {
     const map = useMap();
 
     useEffect(() => {
-        if (!map || !window.google?.maps) return;
+        if (!map || !window.google?.maps?.LatLngBounds) return;
 
         try {
             const bounds = new window.google.maps.LatLngBounds();
@@ -41,9 +41,11 @@ function MapBoundsController({ policePos, sosAlertsList }) {
             if (count > 0) {
                 map.fitBounds(bounds, { top: 70, right: 70, bottom: 70, left: 70 });
                 // If zoom is too tight, set reasonable zoom
-                const listener = window.google.maps.event.addListenerOnce(map, "idle", () => {
-                    if (map.getZoom() > 16) map.setZoom(15);
-                });
+                if (window.google?.maps?.event?.addListenerOnce) {
+                    window.google.maps.event.addListenerOnce(map, "idle", () => {
+                        if (map.getZoom() > 16) map.setZoom(15);
+                    });
+                }
             }
         } catch (e) {
             console.warn("MapBoundsController notice:", e);
@@ -52,6 +54,7 @@ function MapBoundsController({ policePos, sosAlertsList }) {
 
     return null;
 }
+
 
 function Riskzone() {
     const navigate = useNavigate();

@@ -37,14 +37,14 @@ export async function predictMLSafetyScore(lat, lng, options = {}) {
       if (res?.data?.success && res?.data?.data) {
         return res.data;
       }
-    } catch (err) {
+    } catch {
       // Fallback seamlessly to local spatial engine if microservice is starting
     }
   }
 
   // 2. Client-side Coordinate-Derived Risk Regression Model Fallback
-  const effectiveLat = lat ?? 13.0827;
-  const effectiveLng = lng ?? 80.2707;
+  const effectiveLat = lat ?? 10.8795;
+  const effectiveLng = lng ?? 77.0223;
   const spatialWave = Math.sin(effectiveLat * 35.0) * Math.cos(effectiveLng * 35.0);
 
   const incidents = options.nearbyIncidents ?? Math.max(0, Math.min(5, Math.floor(Math.abs(spatialWave * 4.5))));
@@ -126,7 +126,7 @@ export async function classifyMLZone(latitude, longitude, zone, description = ""
       return res.data;
     }
   } catch (err) {
-    console.warn("ML Service offline, using local dynamic classifier fallback.");
+    console.warn("ML Service offline, using local dynamic classifier fallback:", err.message);
   }
 
   // Local ML Fallback Classifier
@@ -181,19 +181,21 @@ export async function fetchRealtimeMLMarkedZones(lat, lng) {
     if (res?.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
       return res.data.data;
     }
-  } catch (err1) {
+  } catch {
     try {
       const resAdmin = await axios.get("http://localhost:8087/api/v1/admin/ml-zones", { timeout: 2500 });
       if (resAdmin?.data?.success && Array.isArray(resAdmin.data.data) && resAdmin.data.data.length > 0) {
         return resAdmin.data.data;
       }
-    } catch (err2) {
+    } catch {
       try {
         const resSafety = await axios.get("http://localhost:8083/api/v1/safety/safe-zones", { timeout: 2500 });
         if (resSafety?.data?.data?.content && Array.isArray(resSafety.data.data.content)) {
           return resSafety.data.data.content;
         }
-      } catch (err3) {}
+      } catch {
+        /* ignore safety service fallback error */
+      }
     }
   }
 
@@ -203,7 +205,9 @@ export async function fetchRealtimeMLMarkedZones(lat, lng) {
     if (res?.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
       return res.data.data;
     }
-  } catch (err) {}
+  } catch {
+    /* ignore python ml service fallback error */
+  }
 
   // 3. Fallback predictive marked zones centered around user coordinates
   const effectiveLat = lat ?? 13.0827;

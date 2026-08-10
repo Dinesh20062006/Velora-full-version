@@ -1,4 +1,3 @@
-import React from "react";
 import AdminLayout from "./AdminLayout";
 import { IoPulseOutline } from "react-icons/io5";
 

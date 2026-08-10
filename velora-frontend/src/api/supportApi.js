@@ -9,7 +9,7 @@ export const getStoredQueries = (userKey) => {
     const raw = localStorage.getItem(SUPPORT_QUERIES_KEY);
     const list = raw ? JSON.parse(raw) : [];
     return list.filter((q) => !q.userKey || String(q.userKey).toLowerCase() === String(activeKey).toLowerCase());
-  } catch (e) {
+  } catch {
     return [];
   }
 };
@@ -38,13 +38,15 @@ export const submitSupportQuery = async (payload) => {
     const list = raw ? JSON.parse(raw) : [];
     list.unshift(newQuery);
     localStorage.setItem(SUPPORT_QUERIES_KEY, JSON.stringify(list));
-  } catch (e) {}
+  } catch {
+    /* ignore local storage error */
+  }
 
   // 3. Post to backend endpoint if available
   try {
     const res = await client.post("/support/query", { ...newQuery, ticketId });
     return { success: true, ticketId, data: res.data || newQuery };
-  } catch (err) {
+  } catch {
     return { success: true, ticketId, data: newQuery, isFallback: true };
   }
 };
@@ -62,7 +64,7 @@ export const getMySupportQueries = async () => {
       }
     });
     return Array.from(map.values());
-  } catch (e) {
+  } catch {
     return localQueries;
   }
 };

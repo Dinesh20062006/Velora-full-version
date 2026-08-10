@@ -1,4 +1,3 @@
-import { MdArrowBack, MdArrowBackIos } from "react-icons/md";
 function Header({ name }){
     return(
         <div className="header">

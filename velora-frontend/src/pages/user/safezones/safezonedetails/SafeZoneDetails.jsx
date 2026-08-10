@@ -49,8 +49,8 @@ function SafeZoneDetails() {
     const navigate = useNavigate();
     const location = useLocation();
     const selectedZoneId = location.state?.zoneId;
-
-    const [currentPosition, setCurrentPosition] = useState(null);
+    const DEFAULT_LOCATION = { lat: 10.8795, lng: 77.0223 };
+    const [currentPosition, setCurrentPosition] = useState(DEFAULT_LOCATION);
     const [realtimeMLZones, setRealtimeMLZones] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -68,8 +68,22 @@ function SafeZoneDetails() {
             });
         };
 
-        navigator.geolocation.getCurrentPosition(updateLocation, null, { enableHighAccuracy: true });
-        const watchId = navigator.geolocation.watchPosition(updateLocation, null, { enableHighAccuracy: true });
+        navigator.geolocation.getCurrentPosition(
+            updateLocation,
+            () => {
+                navigator.geolocation.getCurrentPosition(
+                    updateLocation,
+                    (err) => {
+                        console.warn("Location fallback to default safety hub:", err);
+                        setCurrentPosition(DEFAULT_LOCATION);
+                    },
+                    { enableHighAccuracy: true, timeout: 5000 }
+                );
+            },
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
+        );
+
+        const watchId = navigator.geolocation.watchPosition(updateLocation, null, { enableHighAccuracy: false });
 
         return () => navigator.geolocation.clearWatch(watchId);
     }, []);
@@ -83,6 +97,7 @@ function SafeZoneDetails() {
                     setRealtimeMLZones(ml);
                 }
             } catch (err) {
+                console.warn("Fetch ML zones error:", err);
             } finally {
                 setLoading(false);
             }
@@ -206,11 +221,25 @@ function SafeZoneDetails() {
                                 >
                                     <MapController currentPosition={currentPosition} />
                                     <HotspotOverlay hotspots={hotspots} />
-                                    {typeof window !== "undefined" && window.google?.maps?.marker?.AdvancedMarkerElement && (
+
+                                    {/* User Current Location Marker */}
+                                    {currentPosition && (
                                         <AdvancedMarker position={currentPosition} title="Your Location">
                                             <Pin background="#FF1744" borderColor="#FFFFFF" glyphColor="#FFFFFF" scale={1.2} />
                                         </AdvancedMarker>
                                     )}
+
+                                    {/* Green Safe Zone Markers on Map */}
+                                    {all10kmSafeZones.map((zone) => (
+                                        <AdvancedMarker
+                                            key={`map_sz_${zone.id}`}
+                                            position={{ lat: zone.latitude, lng: zone.longitude }}
+                                            title={zone.name}
+                                            onClick={() => handleNavigateToZone(zone)}
+                                        >
+                                            <Pin background="#00E676" borderColor="#FFFFFF" glyphColor="#FFFFFF" scale={1.1} />
+                                        </AdvancedMarker>
+                                    ))}
                                 </Map>
                             </APIProvider>
                         ) : (

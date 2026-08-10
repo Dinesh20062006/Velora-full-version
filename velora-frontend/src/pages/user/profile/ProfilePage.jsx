@@ -8,7 +8,6 @@ import user from "../../../assets/images/user.png";
 import { getProfile } from "../../../api/profileApi";
 import { getEmergencyContacts } from "../../../api/emergencyContactApi";
 import { getMyReports } from "../../../api/reportApi";
-import { getDashboard } from "../../../api/dashboardApi";
 import { getFileUrl } from "../../../api/client";
 import { useAuth } from "../../../context/AuthContext";
 
@@ -16,11 +15,7 @@ import {
     FiUser,
     FiShield,
     FiSettings,
-    FiPhone,
-    FiMapPin,
-    FiBell,
-    FiChevronRight,
-    FiLogOut
+    FiChevronRight
 } from "react-icons/fi";
 
 import { getAwardCredits } from "../../../utils/creditsManager";
@@ -28,7 +23,7 @@ import { getAwardCredits } from "../../../utils/creditsManager";
 function ProfilePage() {
 
     const navigate = useNavigate();
-    const { user: authUser, logout } = useAuth();
+    const { user: authUser } = useAuth();
 
     const [profile, setProfile] = useState(authUser);
     const [awardCredits, setAwardCredits] = useState(0);
@@ -74,7 +69,7 @@ function ProfilePage() {
 
         loadAll();
         return () => { cancelled = true; };
-    }, []);
+    }, [authUser, profile]);
 
     return (
 
@@ -89,7 +84,7 @@ function ProfilePage() {
                 <div className="user-info">
 
                     <img
-                        src={profile?.profileImageUrl ? getFileUrl(profile.profileImageUrl) : user}
+                        src={user}
                         alt="User"
                         className="user-img"
                     />

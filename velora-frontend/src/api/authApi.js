@@ -18,7 +18,7 @@ export const signup = async (payload) => {
       try {
         const loginRes = await login({ email: body.email, phoneNumber: phone, password: payload.password });
         return loginRes;
-      } catch (loginErr) {
+      } catch {
         throw err;
       }
     }
@@ -49,6 +49,7 @@ export const sendOtp = async (param) => {
     const res = await client.post("/auth/send-otp", { phoneNumber: phone, mobileNumber: phone, purpose });
     return res.data;
   } catch (err) {
+    console.warn("Send OTP fallback notice:", err.message);
     return { success: true, message: "OTP sent", data: { otp: "123456" } };
   }
 };
@@ -69,6 +70,7 @@ export const verifyOtp = async (payload) => {
     const res = await client.post("/auth/verify-otp", body);
     return res.data;
   } catch (err) {
+    console.warn("Verify OTP fallback notice:", err.message);
     // Graceful fallback for dev mode when DB OTP record was not populated by external SMS gateway
     return {
       success: true,
@@ -84,6 +86,7 @@ export const forgotPassword = async (param) => {
     const res = await client.post("/auth/forgot-password", { phoneNumber: phone, mobileNumber: phone, email: phone });
     return res.data;
   } catch (err) {
+    console.warn("Forgot Password fallback notice:", err.message);
     return { success: true, message: "Password reset OTP sent", data: { otp: "123456" } };
   }
 };
@@ -103,6 +106,7 @@ export const resetPassword = async (payload) => {
     const res = await client.post("/auth/reset-password", body);
     return res.data;
   } catch (err) {
+    console.warn("Reset Password fallback notice:", err.message);
     return { success: true, message: "Password reset successful" };
   }
 };

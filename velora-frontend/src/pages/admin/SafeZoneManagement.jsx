@@ -1,18 +1,19 @@
-import React, { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import AdminLayout from "./AdminLayout";
-import { getAdminSafeZones, addAdminSafeZone, addAdminMLZone } from "../../api/adminApi";
+import { getAdminSafeZones, addAdminMLZone } from "../../api/adminApi";
 import { classifyMLZone, fetchRealtimeMLMarkedZones } from "../../api/mlSafetyApi";
 import { APIProvider, Map, AdvancedMarker, Pin, Circle } from "@vis.gl/react-google-maps";
+import MapErrorBoundary from "../../common/MapErrorBoundary/MapErrorBoundary";
 import { formatMLMarkedZonesForMap } from "../../utils/hotspotEngine";
 
 function SafeZoneManagement() {
+  const DEFAULT_LOCATION = { lat: 10.8795, lng: 77.0223 };
   const [safeZones, setSafeZones] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [latitude, setLatitude] = useState(28.6139);
-  const [longitude, setLongitude] = useState(77.2090);
+  const [latitude, setLatitude] = useState(DEFAULT_LOCATION.lat);
+  const [longitude, setLongitude] = useState(DEFAULT_LOCATION.lng);
   const [zoneType, setZoneType] = useState("safe"); // 'safe' (green), 'moderate' (yellow), 'unsafe' (red)
   const [submitting, setSubmitting] = useState(false);
   const [geoLocating, setGeoLocating] = useState(false);
@@ -23,31 +24,38 @@ function SafeZoneManagement() {
   const detectCurrentLocation = () => {
     if (!navigator.geolocation) {
       alert("Geolocation is not supported by your browser");
+      setLatitude(DEFAULT_LOCATION.lat);
+      setLongitude(DEFAULT_LOCATION.lng);
       return;
     }
     setGeoLocating(true);
+
+    const updateCoords = (pos) => {
+      const lat = parseFloat(pos.coords.latitude.toFixed(5));
+      const lng = parseFloat(pos.coords.longitude.toFixed(5));
+      setLatitude(lat);
+      setLongitude(lng);
+      setGeoLocating(false);
+    };
+
+    // Fast low-accuracy detection first, falling back to high accuracy then default safety hub
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = parseFloat(pos.coords.latitude.toFixed(5));
-        const lng = parseFloat(pos.coords.longitude.toFixed(5));
-        setLatitude(lat);
-        setLongitude(lng);
-        setGeoLocating(false);
+      updateCoords,
+      () => {
+        navigator.geolocation.getCurrentPosition(
+          updateCoords,
+          (err) => {
+            console.warn("Geolocation detection fallback to default safety hub:", err);
+            setLatitude(DEFAULT_LOCATION.lat);
+            setLongitude(DEFAULT_LOCATION.lng);
+            setGeoLocating(false);
+          },
+          { enableHighAccuracy: true, timeout: 5000 }
+        );
       },
-      (err) => {
-        console.warn("Geolocation detection error:", err);
-        setGeoLocating(false);
-      },
-      { timeout: 5000, enableHighAccuracy: true }
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
     );
   };
-
-  useEffect(() => {
-    detectCurrentLocation();
-    fetchSafeZones();
-    const interval = setInterval(fetchSafeZones, 1000); // 1-second real-time sync
-    return () => clearInterval(interval);
-  }, []);
 
   const fetchSafeZones = async () => {
     try {
@@ -57,72 +65,51 @@ function SafeZoneManagement() {
       ]);
 
       let combined = [];
-
-      if (mlZonesRes.status === "fulfilled" && Array.isArray(mlZonesRes.value) && mlZonesRes.value.length > 0) {
-        combined = [...mlZonesRes.value];
+      if (backendRes.status === "fulfilled" && Array.isArray(backendRes.value?.data)) {
+        combined = backendRes.value.data;
       }
-
-      if (backendRes.status === "fulfilled" && backendRes.value?.data) {
-        const backendData = backendRes.value.data;
-        const existingIds = new Set(combined.map((z) => z.id));
-        backendData.forEach((item) => {
-          if (!existingIds.has(item.id)) {
-            combined.push(item);
+      if (mlZonesRes.status === "fulfilled" && Array.isArray(mlZonesRes.value)) {
+        mlZonesRes.value.forEach((mlz) => {
+          if (!combined.some((b) => b.name === mlz.name)) {
+            combined.push({
+              id: mlz.id,
+              name: mlz.name,
+              category: mlz.type || "SAFE_ZONE",
+              address: mlz.address,
+              latitude: mlz.lat,
+              longitude: mlz.lng,
+              safetyScore: mlz.riskScore,
+              radiusKm: mlz.radiusKm || 1.5,
+              active: true
+            });
           }
         });
       }
-
-      if (combined.length === 0) {
-        combined = [
-          {
-            id: "sz_1",
-            name: "Central PCR Station Safe Haven",
-            description: "24/7 Police post with CCTV coverage",
-            latitude: 28.6139,
-            longitude: 77.2090,
-            zone: "safe",
-            level: "SAFE",
-            color: "#00E676",
-            radiusMeters: 500,
-            safetyScore: 98,
-            isVerified: true
-          },
-          {
-            id: "sz_2",
-            name: "Metro Station Pink Corridor Safe Hub",
-            description: "Staffed security desk and emergency phone booth",
-            latitude: 28.6210,
-            longitude: 77.2150,
-            zone: "moderate",
-            level: "MODERATE_RISK",
-            color: "#FFC107",
-            radiusMeters: 400,
-            safetyScore: 64,
-            isVerified: true
-          },
-          {
-            id: "sz_3",
-            name: "Connaught Outer Ring High Incident Sector",
-            description: "Multiple evening harassment reports",
-            latitude: 28.6300,
-            longitude: 77.2200,
-            zone: "unsafe",
-            level: "HIGH_RISK",
-            color: "#FF5252",
-            radiusMeters: 450,
-            safetyScore: 28,
-            isVerified: true
-          }
-        ];
-      }
-
       setSafeZones(combined);
-    } catch (e) {
-      console.error("Error fetching ML marked zones:", e);
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.error("Error fetching safe zones:", err);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadData() {
+      if (!cancelled) {
+        await fetchSafeZones();
+      }
+    }
+
+    detectCurrentLocation();
+
+    loadData();
+    const interval = setInterval(() => {
+      if (!cancelled) fetchSafeZones();
+    }, 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   const mapHotspots = useMemo(() => {
     return formatMLMarkedZonesForMap(safeZones);
@@ -349,46 +336,48 @@ function SafeZoneManagement() {
             </div>
 
             <div style={{ flex: 1, minHeight: "360px", borderRadius: "8px", overflow: "hidden", border: "1px solid #374151" }}>
-              {hasMapsApiKey ? (
-                <APIProvider apiKey={mapsApiKey}>
-                  <Map
-                    center={{ lat: parseFloat(latitude) || 28.6139, lng: parseFloat(longitude) || 77.2090 }}
-                    defaultCenter={{ lat: parseFloat(latitude) || 28.6139, lng: parseFloat(longitude) || 77.2090 }}
-                    defaultZoom={14}
-                    mapId="DEMO_MAP_ID"
-                    gestureHandling="greedy"
-                    onClick={handleMapClick}
-                  >
-                    {/* Render Real-Time ML Circles */}
-                    {mapHotspots.map((z) => (
-                      <Circle
-                        key={z.id}
-                        center={{ lat: z.lat, lng: z.lng }}
-                        radius={z.radiusMeters || 400}
-                        strokeColor={z.color}
-                        strokeOpacity={0.9}
-                        strokeWeight={2}
-                        fillColor={z.color}
-                        fillOpacity={0.25}
-                      />
-                    ))}
+              <MapErrorBoundary>
+                {hasMapsApiKey ? (
+                  <APIProvider apiKey={mapsApiKey}>
+                    <Map
+                      center={{ lat: parseFloat(latitude) || 28.6139, lng: parseFloat(longitude) || 77.2090 }}
+                      defaultCenter={{ lat: parseFloat(latitude) || 28.6139, lng: parseFloat(longitude) || 77.2090 }}
+                      defaultZoom={14}
+                      mapId="DEMO_MAP_ID"
+                      gestureHandling="greedy"
+                      onClick={handleMapClick}
+                    >
+                      {/* Render Real-Time ML Circles */}
+                      {mapHotspots.map((z) => (
+                        <Circle
+                          key={z.id}
+                          center={{ lat: z.lat, lng: z.lng }}
+                          radius={z.radiusMeters || 400}
+                          strokeColor={z.color}
+                          strokeOpacity={0.9}
+                          strokeWeight={2}
+                          fillColor={z.color}
+                          fillOpacity={0.25}
+                        />
+                      ))}
 
-                    {/* Active Selected Location Marker */}
-                    <AdvancedMarker position={{ lat: parseFloat(latitude) || 28.6139, lng: parseFloat(longitude) || 77.2090 }}>
-                      <Pin
-                        background={zoneType === "unsafe" ? "#FF5252" : zoneType === "moderate" ? "#FFC107" : "#00E676"}
-                        borderColor="#FFFFFF"
-                        glyphColor="#FFFFFF"
-                        scale={1.3}
-                      />
-                    </AdvancedMarker>
-                  </Map>
-                </APIProvider>
-              ) : (
-                <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>
-                  Google Maps Key required in .env
-                </div>
-              )}
+                      {/* Active Selected Location Marker */}
+                      <AdvancedMarker position={{ lat: parseFloat(latitude) || DEFAULT_LOCATION.lat, lng: parseFloat(longitude) || DEFAULT_LOCATION.lng }}>
+                        <Pin
+                          background={zoneType === "unsafe" ? "#FF5252" : zoneType === "moderate" ? "#FFC107" : "#00E676"}
+                          borderColor="#FFFFFF"
+                          glyphColor="#FFFFFF"
+                          scale={1.3}
+                        />
+                      </AdvancedMarker>
+                    </Map>
+                  </APIProvider>
+                ) : (
+                  <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>
+                    Google Maps Key required in .env
+                  </div>
+                )}
+              </MapErrorBoundary>
             </div>
 
             <div style={{ marginTop: "10px", display: "flex", gap: "16px", fontSize: "12px", color: "#d1d5db" }}>
@@ -402,8 +391,8 @@ function SafeZoneManagement() {
         {/* Existing Safe & Marked Zones Table */}
         <div className="tableBox" style={{ background: "#1f2937", padding: "20px", borderRadius: "12px", border: "1px solid #374151" }}>
           <h2 style={{ color: "#f3f4f6", fontSize: "20px", marginBottom: "16px" }}>Active ML Marked Places & Verified Zones</h2>
-          {loading ? (
-            <p style={{ color: "#9ca3af" }}>Loading real-time ML map zones...</p>
+          {safeZones.length === 0 ? (
+            <p style={{ color: "#9ca3af" }}>No registered ML map zones found.</p>
           ) : (
             <table style={{ width: "100%", textAlign: "left", color: "#d1d5db", borderCollapse: "collapse" }}>
               <thead>

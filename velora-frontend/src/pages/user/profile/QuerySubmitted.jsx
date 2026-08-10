@@ -1,4 +1,5 @@
 
+import { useState } from "react";
 import UserLayout from "../../../layouts/UserLayout";
 import { useNavigate, useLocation } from "react-router-dom";
 import { FiCheckCircle, FiAward } from "react-icons/fi";
@@ -7,7 +8,7 @@ function QuerySubmitted() {
 
     const navigate = useNavigate();
     const location = useLocation();
-    const ticketId = location.state?.ticketId || `VLR-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+    const [ticketId] = useState(() => location.state?.ticketId || `VLR-2026-${Math.floor(10000 + Math.random() * 90000)}`);
 
     return (
 

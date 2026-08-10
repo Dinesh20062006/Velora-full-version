@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import otpImage from "/src/assets/image/otp-banner.png";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { policeVerifyOtp } from "../../../api/policeApi";
@@ -21,10 +21,6 @@ function OTP() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setShowModal(true);
-  }, []);
 
   const handleAutofill = () => {
     const codeArr = currentOtp.split("").slice(0, 6);

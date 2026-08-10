@@ -27,7 +27,7 @@ complaintClient.interceptors.request.use((config) => {
       config.headers["X-Velora-User-Id"] = String(uid);
       config.headers["X-Velora-User-Role"] = String(role);
       config.headers["X-Velora-User-Email"] = String(email);
-    } catch (e) {
+    } catch {
       // Ignore
     }
   }
@@ -52,7 +52,7 @@ export const getPoliceDashboardStats = async () => {
   try {
     const r = await client.get("/police/dashboard/stats");
     return r.data;
-  } catch (err1) {
+  } catch {
     try {
       const r = await complaintClient.get("/api/complaints/stats");
       const d = r.data || {};
@@ -65,7 +65,7 @@ export const getPoliceDashboardStats = async () => {
           assignedToMe: d.assignedComplaints ?? 0
         }
       };
-    } catch (err2) {
+    } catch {
       return { success: true, data: { pendingIncidents: 0, activeSOSAlerts: 0, resolvedToday: 0, assignedToMe: 0 } };
     }
   }
@@ -86,7 +86,7 @@ export const getLocalCaseAssignments = () => {
   try {
     const raw = localStorage.getItem(CASE_ASSIGNMENTS_KEY);
     return raw ? JSON.parse(raw) : {};
-  } catch (e) {
+  } catch {
     return {};
   }
 };
@@ -100,28 +100,28 @@ export const saveLocalCaseAssignment = (id, updates) => {
       ...updates
     };
     localStorage.setItem(CASE_ASSIGNMENTS_KEY, JSON.stringify(existing));
-  } catch (e) {
-    console.error("Error saving local case assignment:", e);
+  } catch (err) {
+    console.error("Error saving local case assignment:", err);
   }
 };
 
 // ---- Police Cases / Incidents ----
 export const getAllPoliceIncidents = async (params) => {
-  let list = [];
+  let listData;
   try {
     const r = await complaintClient.get("/api/complaints");
-    list = r.data;
-  } catch (err1) {
+    listData = r.data;
+  } catch {
     try {
       const r = await client.get("/police/incidents", { params });
-      list = r.data;
-    } catch (err2) {
-      list = [];
+      listData = r.data;
+    } catch {
+      listData = [];
     }
   }
 
   const savedAssignments = getLocalCaseAssignments();
-  const arr = Array.isArray(list) ? list : (list?.content || []);
+  const arr = Array.isArray(listData) ? listData : (listData?.content || []);
   const merged = arr.map((item) => {
     const cId = item.complaintId || item.id;
     if (cId && savedAssignments[cId]) {
@@ -136,7 +136,7 @@ export const getAllPoliceIncidents = async (params) => {
     return item;
   });
 
-  return Array.isArray(list) ? merged : { ...list, content: merged };
+  return Array.isArray(listData) ? merged : { ...listData, content: merged };
 };
 
 export const getPendingCases = async () => {
@@ -146,7 +146,7 @@ export const getPendingCases = async () => {
       return all.filter((c) => (c.status || "").toUpperCase() === "PENDING");
     }
     return [];
-  } catch (err) {
+  } catch {
     return [];
   }
 };
@@ -161,7 +161,7 @@ export const getTodaysCases = async () => {
       });
     }
     return [];
-  } catch (err) {
+  } catch {
     return [];
   }
 };
@@ -172,11 +172,11 @@ export const getCaseDetails = async (id) => {
   try {
     const r = await complaintClient.get(`/api/complaints/${id}`);
     return r.data;
-  } catch (err1) {
+  } catch {
     try {
       const r = await client.get(`/police/incidents/${id}`);
       return r.data;
-    } catch (err2) {
+    } catch {
       return null;
     }
   }
@@ -187,11 +187,11 @@ export const updateCaseStatus = async (id, status, notes = "") => {
   try {
     const r = await complaintClient.put(`/api/complaints/${id}/status`, { status, notes });
     return r.data;
-  } catch (err1) {
+  } catch {
     try {
       const r = await client.put(`/police/incidents/${id}/status`, { status, notes });
       return r.data;
-    } catch (err2) {
+    } catch {
       return { success: true, id, status };
     }
   }
@@ -212,15 +212,15 @@ export const assignPoliceOfficerToCase = async (id, officerId, officerName = "")
   try {
     const r = await complaintClient.put(`/api/complaints/${id}/investigation`, payload);
     return r.data;
-  } catch (err1) {
+  } catch {
     try {
       const r = await complaintClient.put(`/api/complaints/${id}/assign`, payload);
       return r.data;
-    } catch (err2) {
+    } catch {
       try {
         const r = await client.put(`/police/incidents/${id}/assign`, payload);
         return r.data;
-      } catch (err3) {
+      } catch {
         return { success: true, id, officerId: officerStr, officerName };
       }
     }
@@ -245,7 +245,9 @@ export const getRegisteredPoliceOfficers = async () => {
         }
       }
     }
-  } catch (e) {}
+  } catch {
+    /* ignore fallback error */
+  }
 
   return [
     { id: "usr_7", name: "Dinesh", policeId: "usr_7", email: "8248764291@police.gov.in" },

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import UserLayout from "./UserLayout";
 import {
   getAllPoliceIncidents,
@@ -11,11 +11,6 @@ function PendingCases() {
   const [cases, setCases] = useState([]);
   const [officers, setOfficers] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchCases();
-    fetchOfficers();
-  }, []);
 
   const fetchOfficers = async () => {
     try {
@@ -36,12 +31,24 @@ function PendingCases() {
       } else if (data?.content && Array.isArray(data.content)) {
         setCases(data.content);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error("Failed to fetch cases:", err);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadData() {
+      if (!cancelled) {
+        await fetchCases();
+        await fetchOfficers();
+      }
+    }
+    loadData();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleStatusChange = async (id, newStatus) => {
     try {
@@ -52,7 +59,8 @@ function PendingCases() {
           return cId === id ? { ...c, status: newStatus } : c;
         })
       );
-    } catch (e) {
+    } catch (err) {
+      console.error("Failed to update status:", err);
       alert("Failed to update status");
     }
   };
@@ -72,7 +80,8 @@ function PendingCases() {
             : c;
         })
       );
-    } catch (e) {
+    } catch (err) {
+      console.error("Failed to assign police officer:", err);
       alert("Failed to assign police officer");
     }
   };

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import UserLayout from "./UserLayout";
 import {
   getAllPoliceIncidents,
@@ -9,11 +9,6 @@ function RecentCases() {
   const [cases, setCases] = useState([]);
   const [officers, setOfficers] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchCases();
-    fetchOfficers();
-  }, []);
 
   const fetchOfficers = async () => {
     try {
@@ -40,6 +35,18 @@ function RecentCases() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadData() {
+      if (!cancelled) {
+        await fetchCases();
+        await fetchOfficers();
+      }
+    }
+    loadData();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <UserLayout>

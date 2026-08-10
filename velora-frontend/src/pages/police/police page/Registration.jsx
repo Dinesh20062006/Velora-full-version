@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import police_logo from "/src/assets/image/Tamil_Nadu_Police_Logo.png";
 import velora_logo from "/src/assets/image/velora-trans.png";
 import { useNavigate } from "react-router-dom";

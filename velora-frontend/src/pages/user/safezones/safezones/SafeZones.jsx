@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import UserLayout from "../../../../layouts/UserLayout";
 import Button from "../../../../common/Button/Button";
 import { useNavigate } from "react-router-dom";
-import { getNearbySafeZones } from "../../../../api/safeZoneApi";
 import {
     FaHospital,
     FaShieldAlt,
@@ -49,7 +48,8 @@ function MapController({ currentPosition }) {
 function SafeZones() {
     const navigate = useNavigate();
     const [selectedId, setSelectedId] = useState(null);
-    const [currentPosition, setCurrentPosition] = useState(null);
+    const DEFAULT_LOCATION = { lat: 10.8795, lng: 77.0223 };
+    const [currentPosition, setCurrentPosition] = useState(DEFAULT_LOCATION);
     const [realtimeMLZones, setRealtimeMLZones] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -67,16 +67,24 @@ function SafeZones() {
             });
         };
 
+        // Fast standard location detection
         navigator.geolocation.getCurrentPosition(
             updateLocation,
-            (err) => {
-                console.warn("Location permission or signal issue:", err);
+            () => {
+                navigator.geolocation.getCurrentPosition(
+                    updateLocation,
+                    (err) => {
+                        console.warn("Location fallback to default safety hub:", err);
+                        setCurrentPosition(DEFAULT_LOCATION);
+                    },
+                    { enableHighAccuracy: true, timeout: 5000 }
+                );
             },
-            { enableHighAccuracy: true, timeout: 10000 }
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
         );
 
         const watchId = navigator.geolocation.watchPosition(updateLocation, null, {
-            enableHighAccuracy: true
+            enableHighAccuracy: false
         });
 
         return () => navigator.geolocation.clearWatch(watchId);
@@ -90,6 +98,7 @@ function SafeZones() {
                     setRealtimeMLZones(ml);
                 }
             } catch (err) {
+                console.warn("ML zones fetch notice:", err);
             } finally {
                 setLoading(false);
             }
@@ -195,7 +204,7 @@ function SafeZones() {
                                     <MapController currentPosition={currentPosition} />
                                     <HotspotOverlay hotspots={hotspots} />
 
-                                    {typeof window !== "undefined" && window.google?.maps?.marker?.AdvancedMarkerElement && (
+                                    {currentPosition && (
                                         <AdvancedMarker
                                             position={currentPosition}
                                             title="Your Current Location"

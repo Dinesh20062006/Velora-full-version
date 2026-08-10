@@ -1,4 +1,3 @@
-import React from 'react';
 import velora_logo from '/src/assets/image/velora-trans.png';
 
 function AdminTopNavbar() {

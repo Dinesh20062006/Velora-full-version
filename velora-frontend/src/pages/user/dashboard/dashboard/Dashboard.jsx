@@ -29,8 +29,8 @@ function Dashboard() {
     let cancelled = false;
 
     function fetchDashboard(lat, lng) {
-      const effectiveLat = lat ?? 13.0827;
-      const effectiveLng = lng ?? 80.2707;
+      const effectiveLat = lat ?? 10.8795;
+      const effectiveLng = lng ?? 77.0223;
 
       const fallbackSafety = getRegionSafety(effectiveLat, effectiveLng).current;
       if (!cancelled) {
@@ -39,7 +39,7 @@ function Dashboard() {
         if (lat != null && lng != null) {
           setLocationName(`GPS Verified (${lat.toFixed(3)}°, ${lng.toFixed(3)}°)`);
         } else {
-          setLocationName("Region Coordinates (Default Safety Hub)");
+          setLocationName("Karpagam College of Engineering, Coimbatore");
         }
       }
 
@@ -65,11 +65,41 @@ function Dashboard() {
     }
 
     if (navigator.geolocation) {
+      const handleLocationSuccess = (pos) => {
+        fetchDashboard(pos.coords.latitude, pos.coords.longitude);
+      };
+
+      const handleLocationError = () => {
+        fetchDashboard(undefined, undefined);
+      };
+
       navigator.geolocation.getCurrentPosition(
-        (pos) => fetchDashboard(pos.coords.latitude, pos.coords.longitude),
-        () => fetchDashboard(undefined, undefined),
-        { timeout: 6000 }
+        handleLocationSuccess,
+        () => {
+          navigator.geolocation.getCurrentPosition(
+            handleLocationSuccess,
+            handleLocationError,
+            { enableHighAccuracy: true, timeout: 5000 }
+          );
+        },
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
       );
+
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          if (!cancelled) {
+            setCurrentPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            setLocationName(`GPS Verified (${pos.coords.latitude.toFixed(3)}°, ${pos.coords.longitude.toFixed(3)}°)`);
+          }
+        },
+        null,
+        { enableHighAccuracy: false }
+      );
+
+      return () => {
+        cancelled = true;
+        navigator.geolocation.clearWatch(watchId);
+      };
     } else {
       fetchDashboard(undefined, undefined);
     }

@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { IoNotificationsOutline, IoPersonCircleOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
 import velora_logo from "../../assets/logos/velora-icon.png";
 import { getUnreadCount } from "../../api/notificationApi";
 import { useAuth } from "../../context/AuthContext";
 import { getFileUrl } from "../../api/client";
+import userAvatar from "../../assets/images/user.png";
 
 function Navbar() {
   const navigate = useNavigate();
@@ -69,17 +70,11 @@ function Navbar() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }} onClick={() => navigate("/profile")}>
-          {user?.profileImageUrl ? (
-            <img
-              src={getFileUrl(user.profileImageUrl)}
-              alt="User Profile"
-              style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover", border: "1px solid #ec4899" }}
-            />
-          ) : (
-            <IoPersonCircleOutline 
-              style={{ fontSize: "28px", color: "#9ca3af", transition: "color 0.2s" }} 
-            />
-          )}
+          <img
+            src={userAvatar}
+            alt="User Profile"
+            style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover", border: "1px solid #ec4899" }}
+          />
           {user?.fullName && (
             <span style={{ color: "#e5e7eb", fontSize: "14px", fontWeight: "500" }}>
               {user.fullName.split(" ")[0]}

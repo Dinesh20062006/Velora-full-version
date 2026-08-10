@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   APIProvider,
@@ -40,11 +40,11 @@ function PoliceRouteRenderer({ origin, destination, onRouteFound }) {
 
     const clearOldRoute = () => {
       polylinesRef.current.forEach((polyline) => {
-        try { polyline.setMap(null); } catch (e) {}
+        try { polyline.setMap(null); } catch (err) { console.warn("Polyline clear notice:", err); }
       });
       polylinesRef.current = [];
       if (directionsRendererRef.current) {
-        try { directionsRendererRef.current.setMap(null); } catch (e) {}
+        try { directionsRendererRef.current.setMap(null); } catch (err) { console.warn("Directions clear notice:", err); }
         directionsRendererRef.current = null;
       }
     };
@@ -96,7 +96,9 @@ function PoliceRouteRenderer({ origin, destination, onRouteFound }) {
         bounds.extend(originCoords);
         bounds.extend(destCoords);
         map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 });
-      } catch (e) {}
+      } catch (err) {
+        console.warn("Bounds notice:", err);
+      }
     };
 
     const calculateRoute = async () => {
@@ -105,10 +107,10 @@ function PoliceRouteRenderer({ origin, destination, onRouteFound }) {
       const destCoords = { lat: parseFloat(destination.lat), lng: parseFloat(destination.lng) };
 
       // 1. Try Google Maps Directions API to route through road networks
-      if (routesLibrary?.DirectionsService && window.google?.maps) {
+      if (window.google?.maps?.DirectionsService) {
         try {
-          const ds = new routesLibrary.DirectionsService();
-          const dr = new routesLibrary.DirectionsRenderer({
+          const ds = new window.google.maps.DirectionsService();
+          const dr = new window.google.maps.DirectionsRenderer({
             map,
             suppressMarkers: false,
             polylineOptions: {
@@ -122,7 +124,7 @@ function PoliceRouteRenderer({ origin, destination, onRouteFound }) {
           ds.route({
             origin: originCoords,
             destination: destCoords,
-            travelMode: window.google.maps.TravelMode.DRIVING
+            travelMode: window.google.maps.TravelMode?.DRIVING || "DRIVING"
           }, (response, status) => {
             if (cancelled) return;
             if (status === "OK" && response) {
@@ -185,7 +187,9 @@ function PoliceRouteRenderer({ origin, destination, onRouteFound }) {
               const bounds = new window.google.maps.LatLngBounds();
               route.path.forEach((p) => bounds.extend(p));
               map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 });
-            } catch (e) {}
+            } catch (err) {
+              console.warn("Routes V2 bounds notice:", err);
+            }
 
             return;
           }

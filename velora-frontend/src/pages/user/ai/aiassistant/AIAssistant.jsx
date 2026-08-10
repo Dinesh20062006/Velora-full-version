@@ -37,7 +37,7 @@ function AIAssistant() {
         if (!queryText || loading) return;
 
         setLoading(true);
-        const userMsg = { id: `user-${Date.now()}`, sender: "USER", message: queryText };
+        const userMsg = { id: `user-${messages.length + 1}`, sender: "USER", message: queryText };
         setMessages((prev) => [...prev, userMsg]);
         setQuestion("");
 
@@ -49,14 +49,14 @@ function AIAssistant() {
             if (responseText) {
                 setMessages((prev) => [
                     ...prev,
-                    { id: `ai-${Date.now()}`, sender: "AI", response: responseText }
+                    { id: `ai-${prev.length + 1}`, sender: "AI", response: responseText }
                 ]);
             }
         } catch {
             setMessages((prev) => [
                 ...prev,
                 {
-                    id: `ai-err-${Date.now()}`,
+                    id: `ai-err-${prev.length + 1}`,
                     sender: "AI",
                     response: "🚨 Emergency Protocol: If you are in immediate danger, please press the SOS button or call National Emergency Helpline 112 / Police 100 immediately."
                 }
@@ -155,13 +155,13 @@ function AIAssistant() {
                     flexDirection: "column",
                     gap: "16px"
                 }}>
-                    {messages.map((m) => {
+                    {messages.map((m, idx) => {
                         const isUser = m.sender === "USER";
                         const text = isUser ? (m.message || m.text) : (m.response || m.message);
 
                         return (
                             <div
-                                key={m.id || Math.random()}
+                                key={m.id || `msg_${idx}`}
                                 style={{
                                     display: "flex",
                                     justifyContent: isUser ? "flex-end" : "flex-start",
