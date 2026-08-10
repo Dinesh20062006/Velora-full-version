@@ -1,0 +1,7 @@
+D:\Projects\VELORA\Velora-sample\velora-backend\velora-api-gateway\src\main\java\com\velora\gateway\exception\GlobalErrorExceptionHandler.java
+D:\Projects\VELORA\Velora-sample\velora-backend\velora-api-gateway\src\main\java\com\velora\gateway\filter\JwtGatewayFilter.java
+D:\Projects\VELORA\Velora-sample\velora-backend\velora-api-gateway\src\main\java\com\velora\gateway\GatewayConfig.java
+D:\Projects\VELORA\Velora-sample\velora-backend\velora-api-gateway\src\main\java\com\velora\gateway\filter\RequestLoggingFilter.java
+D:\Projects\VELORA\Velora-sample\velora-backend\velora-api-gateway\src\main\java\com\velora\gateway\security\JwtUtils.java
+D:\Projects\VELORA\Velora-sample\velora-backend\velora-api-gateway\src\main\java\com\velora\gateway\VeloraApiGatewayApplication.java
+D:\Projects\VELORA\Velora-sample\velora-backend\velora-api-gateway\src\main\java\com\velora\gateway\controller\FallbackController.java

@@ -1,0 +1,2 @@
+ALTER TABLE users MODIFY COLUMN is_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+UPDATE users SET is_enabled = TRUE WHERE is_enabled = FALSE;

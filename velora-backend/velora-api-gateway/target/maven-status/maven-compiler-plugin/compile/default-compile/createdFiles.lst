@@ -1,0 +1,7 @@
+com\velora\gateway\filter\JwtGatewayFilter.class
+com\velora\gateway\filter\RequestLoggingFilter.class
+com\velora\gateway\exception\GlobalErrorExceptionHandler.class
+com\velora\gateway\GatewayConfig.class
+com\velora\gateway\VeloraApiGatewayApplication.class
+com\velora\gateway\controller\FallbackController.class
+com\velora\gateway\security\JwtUtils.class
