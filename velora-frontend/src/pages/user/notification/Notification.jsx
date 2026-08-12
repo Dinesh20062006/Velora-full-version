@@ -15,6 +15,7 @@ import BackButton from "../../../common/BackButton/BackButton";
 import { getNotifications, markNotificationRead } from "../../../api/notificationApi";
 
 const ICONS = {
+    SOS: { icon: FiAlertTriangle, className: "danger" },
     ALERT: { icon: FiAlertTriangle, className: "danger" },
     RISK_ZONE: { icon: FiAlertTriangle, className: "warning" },
     SAFETY_SCORE: { icon: FiStar, className: "success" },
@@ -49,7 +50,8 @@ function Notification() {
                 .then((res) => {
                     if (isMounted) {
                         const list = Array.isArray(res?.data) ? res.data : (res?.data?.content || []);
-                        setNotifications(list);
+                        const filtered = list.filter(n => n.type !== "SOS" && n.referenceType !== "SOS_ALERT");
+                        setNotifications(filtered);
                     }
                 })
                 .catch(() => {

@@ -39,15 +39,15 @@ function PendingCases() {
   };
 
   useEffect(() => {
-    let cancelled = false;
-    async function loadData() {
-      if (!cancelled) {
-        await fetchCases();
-        await fetchOfficers();
-      }
-    }
-    loadData();
-    return () => { cancelled = true; };
+    fetchCases();
+    fetchOfficers();
+
+    const interval = setInterval(() => {
+      fetchCases();
+      fetchOfficers();
+    }, 4000); // Live sync with database every 4 seconds
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleStatusChange = async (id, newStatus) => {
@@ -152,7 +152,7 @@ function PendingCases() {
                           <option value="">-- Select Officer --</option>
                           {officers.map((off) => (
                             <option key={off.id || off.policeId} value={off.id || off.policeId}>
-                              🆔 {off.policeId || off.id} ({off.name})
+                              {off.name}
                             </option>
                           ))}
                         </select>

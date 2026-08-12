@@ -94,35 +94,24 @@ export const getStoredRegisteredUsers = () => {
 };
 
 export const getAllUsers = async () => {
-  const localList = getStoredRegisteredUsers();
   try {
     const res = await client.get("/admin/users");
     const backendList = Array.isArray(res.data) ? res.data : (res.data?.data || []);
     if (backendList.length > 0) {
-      const map = new Map();
-      [...backendList, ...localList].forEach((u) => {
-        const key = u.id || u.email;
-        if (key) map.set(key, { ...u, id: u.id || `usr_${Math.floor(100 + Math.random() * 900)}` });
-      });
-      return { data: Array.from(map.values()) };
+      return { data: backendList };
     }
   } catch {
     try {
       const direct = await axios.get("http://localhost:8087/api/v1/admin/users");
       const list = Array.isArray(direct.data) ? direct.data : (direct.data?.data || []);
       if (list.length > 0) {
-        const map = new Map();
-        [...list, ...localList].forEach((u) => {
-          const key = u.id || u.email;
-          if (key) map.set(key, { ...u, id: u.id || `usr_${Math.floor(100 + Math.random() * 900)}` });
-        });
-        return { data: Array.from(map.values()) };
+        return { data: list };
       }
     } catch {
       /* ignore direct fetch error */
     }
   }
-  return { data: localList };
+  return { data: [] };
 };
 
 export const addAdminUser = async (userPayload) => {

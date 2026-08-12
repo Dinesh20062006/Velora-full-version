@@ -37,15 +37,15 @@ function RecentCases() {
   };
 
   useEffect(() => {
-    let cancelled = false;
-    async function loadData() {
-      if (!cancelled) {
-        await fetchCases();
-        await fetchOfficers();
-      }
-    }
-    loadData();
-    return () => { cancelled = true; };
+    fetchCases();
+    fetchOfficers();
+
+    const interval = setInterval(() => {
+      fetchCases();
+      fetchOfficers();
+    }, 4000); // Live sync with database every 4 seconds
+
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -150,7 +150,7 @@ function RecentCases() {
                         <td style={{ padding: "14px" }}>
                           {currentOfficer ? (
                             <span style={{ color: "#10b981", fontWeight: "600", whiteSpace: "nowrap" }}>
-                              {currentOfficer} ({assignedOfficerObj ? assignedOfficerObj.name : item.assignedOfficerName || "Assigned"})
+                              {assignedOfficerObj ? assignedOfficerObj.name : item.assignedOfficerName || "Assigned Officer"}
                             </span>
                           ) : (
                             <span style={{ color: "#ef4444", fontWeight: "600", whiteSpace: "nowrap" }}>

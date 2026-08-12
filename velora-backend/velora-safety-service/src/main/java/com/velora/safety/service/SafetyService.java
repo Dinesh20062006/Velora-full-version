@@ -174,23 +174,30 @@ public class SafetyService {
         try {
             jdbcTemplate.update(connection -> {
                 PreparedStatement ps = connection.prepareStatement(
-                    "INSERT INTO sos_alerts (user_id, latitude, longitude, battery_level, status, triggered_at, created_date, last_modified_date, version) VALUES (?, ?, ?, ?, 'ACTIVE', NOW(), NOW(), NOW(), 0)",
+                    "INSERT INTO sos_alerts (user_id, latitude, longitude, status, created_at, updated_at, is_deleted, version) VALUES (?, ?, ?, 'ACTIVE', NOW(), NOW(), false, 0)",
                     Statement.RETURN_GENERATED_KEYS
                 );
                 ps.setLong(1, userId != null ? userId : 1L);
                 ps.setDouble(2, finalLat);
                 ps.setDouble(3, finalLon);
-                ps.setInt(4, finalBattery);
                 return ps;
             }, keyHolder);
         } catch (Exception e) {
-            log.warn("Could not insert to sos_alerts via keyHolder: {}", e.getMessage());
+            log.warn("Could not insert to sos_alerts via created_at columns: {}", e.getMessage());
             try {
-                jdbcTemplate.update(
-                    "INSERT INTO sos_alerts (user_id, latitude, longitude, battery_level, status, triggered_at, created_date, last_modified_date, version) VALUES (?, ?, ?, ?, 'ACTIVE', NOW(), NOW(), NOW(), 0)",
-                    userId != null ? userId : 1L, finalLat, finalLon, finalBattery
-                );
-            } catch (Exception ignored) {}
+                jdbcTemplate.update(connection -> {
+                    PreparedStatement ps = connection.prepareStatement(
+                        "INSERT INTO sos_alerts (user_id, latitude, longitude, status, created_date, last_modified_date, version) VALUES (?, ?, ?, 'ACTIVE', NOW(), NOW(), 0)",
+                        Statement.RETURN_GENERATED_KEYS
+                    );
+                    ps.setLong(1, userId != null ? userId : 1L);
+                    ps.setDouble(2, finalLat);
+                    ps.setDouble(3, finalLon);
+                    return ps;
+                }, keyHolder);
+            } catch (Exception ex) {
+                log.error("Failed to insert to sos_alerts: {}", ex.getMessage());
+            }
         }
 
         Long alertId = (keyHolder.getKey() != null) ? keyHolder.getKey().longValue() : System.currentTimeMillis();
@@ -209,12 +216,20 @@ public class SafetyService {
         String alertMsg = "🚨 EMERGENCY SOS! User #" + (userId != null ? userId : 1L) + " triggered distress signal at (" + lat + ", " + lon + "). Contacts notified: " + (contactPhones.isEmpty() ? "Emergency Helpline" : String.join(", ", contactPhones));
 
         try {
-            List<Long> allUserIds = jdbcTemplate.query("SELECT id FROM users", (rs, rowNum) -> rs.getLong("id"));
-            for (Long uid : allUserIds) {
-                jdbcTemplate.update(
-                    "INSERT INTO notifications (user_id, title, message, type, is_read, reference_id, reference_type, created_date, last_modified_date, version) VALUES (?, ?, ?, 'SOS', false, ?, 'SOS_ALERT', NOW(), NOW(), 0)",
-                    uid, "🚨 EMERGENCY SOS ALERT!", alertMsg, alertId
-                );
+            Long currentUserId = userId != null ? userId : 0L;
+            List<Long> otherUserIds = jdbcTemplate.query("SELECT id FROM users WHERE id != ?", (rs, rowNum) -> rs.getLong("id"), currentUserId);
+            for (Long uid : otherUserIds) {
+                try {
+                    jdbcTemplate.update(
+                        "INSERT INTO notifications (user_id, title, message, type, is_read, reference_id, reference_type, created_at, updated_at, is_deleted, version) VALUES (?, ?, ?, 'SOS', false, ?, 'SOS_ALERT', NOW(), NOW(), false, 0)",
+                        uid, "🚨 EMERGENCY SOS ALERT!", alertMsg, alertId
+                    );
+                } catch (Exception e) {
+                    jdbcTemplate.update(
+                        "INSERT INTO notifications (user_id, title, message, type, is_read, reference_id, reference_type, created_date, last_modified_date, version) VALUES (?, ?, ?, 'SOS', false, ?, 'SOS_ALERT', NOW(), NOW(), 0)",
+                        uid, "🚨 EMERGENCY SOS ALERT!", alertMsg, alertId
+                    );
+                }
             }
         } catch (Exception e) {
             log.warn("Could not broadcast notifications: {}", e.getMessage());
@@ -242,10 +257,17 @@ public class SafetyService {
                 if (!clean.isBlank()) numericId = Long.parseLong(clean);
             }
             if (numericId != null) {
-                jdbcTemplate.update(
-                    "UPDATE sos_alerts SET status = 'CANCELLED', last_modified_date = NOW(), resolved_at = NOW() WHERE id = ?",
-                    numericId
-                );
+                try {
+                    jdbcTemplate.update(
+                        "UPDATE sos_alerts SET status = 'CANCELLED', updated_at = NOW(), resolved_at = NOW() WHERE id = ?",
+                        numericId
+                    );
+                } catch (Exception e) {
+                    jdbcTemplate.update(
+                        "UPDATE sos_alerts SET status = 'CANCELLED', last_modified_date = NOW(), resolved_at = NOW() WHERE id = ?",
+                        numericId
+                    );
+                }
             }
         } catch (Exception e) {
             log.warn("Could not update sos_alerts status: {}", e.getMessage());

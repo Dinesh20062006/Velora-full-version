@@ -229,32 +229,38 @@ export const assignPoliceOfficerToCase = async (id, officerId, officerName = "")
 
 export const getRegisteredPoliceOfficers = async () => {
   try {
-    const raw = localStorage.getItem("velora_registered_users_db");
-    if (raw) {
-      const list = JSON.parse(raw);
-      if (Array.isArray(list)) {
-        const police = list.filter((u) => (u.role || "").toUpperCase().includes("POLICE"));
-        if (police.length > 0) {
-          return police.map((u) => ({
-            id: u.id || u.policeId || `usr_${u.email}`,
-            name: u.fullName || u.name || u.email || "Police Officer",
-            policeId: u.id || u.policeId || u.badgeNumber || `POL-${u.id}`,
-            email: u.email,
-            mobileNumber: u.mobileNumber
-          }));
-        }
-      }
+    const res = await client.get("/admin/users");
+    const list = Array.isArray(res?.data) ? res.data : (res?.data?.data || []);
+    const policeList = list.filter((u) => (u.role || "").toUpperCase().includes("POLICE"));
+    if (policeList.length > 0) {
+      return policeList.map((u) => ({
+        id: u.id,
+        name: u.fullName || u.email || "Police Officer",
+        policeId: u.id,
+        email: u.email,
+        mobileNumber: u.mobileNumber || u.phone
+      }));
     }
-  } catch {
-    /* ignore fallback error */
+  } catch (err) {
+    try {
+      const direct = await axios.get("http://localhost:8087/api/v1/admin/users");
+      const list = Array.isArray(direct?.data) ? direct.data : (direct?.data?.data || []);
+      const policeList = list.filter((u) => (u.role || "").toUpperCase().includes("POLICE"));
+      if (policeList.length > 0) {
+        return policeList.map((u) => ({
+          id: u.id,
+          name: u.fullName || u.email || "Police Officer",
+          policeId: u.id,
+          email: u.email,
+          mobileNumber: u.mobileNumber || u.phone
+        }));
+      }
+    } catch {
+      /* ignore direct fetch error */
+    }
   }
 
-  return [
-    { id: "usr_7", name: "Dinesh", policeId: "usr_7", email: "8248764291@police.gov.in" },
-    { id: "usr_11", name: "Dinesh", policeId: "usr_11", email: "7878787878@police.gov.in" },
-    { id: "POL-101", name: "Officer Vikram", policeId: "POL-101", email: "vikram@police.gov.in" },
-    { id: "POL-102", name: "Officer Ananya", policeId: "POL-102", email: "ananya@police.gov.in" }
-  ];
+  return [];
 };
 
 // ---- Risk zones / Safe Zones ----

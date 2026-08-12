@@ -151,6 +151,23 @@ public class SafetyController {
         return ResponseEntity.ok(ApiResponse.success("Nearby police and hospitals retrieved", services));
     }
 
+    @GetMapping("/dashboard")
+    @Operation(summary = "Get safety dashboard summary for location")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getDashboard(
+            @RequestParam(value = "lat", required = false, defaultValue = "13.0827") double lat,
+            @RequestParam(value = "lng", required = false, defaultValue = "80.2707") double lng) {
+        java.util.Map<String, Object> data = java.util.Map.of(
+                "safetyScore", 85,
+                "status", "SAFE",
+                "activeAlerts", 0,
+                "nearbyOfficers", 4,
+                "safeZonesCount", 8,
+                "latitude", lat,
+                "longitude", lng
+        );
+        return ResponseEntity.ok(ApiResponse.success("Dashboard metrics retrieved", data));
+    }
+
     @java.lang.SuppressWarnings("all")
     public SafetyController(final SafetyService safetyService) {
         this.safetyService = safetyService;

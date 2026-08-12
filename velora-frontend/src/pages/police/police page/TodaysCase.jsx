@@ -8,8 +8,8 @@ function TodaysCase() {
   const [incidentsList, setIncidentsList] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchAnalyticsData = async () => {
-    setLoading(true);
+  const fetchAnalyticsData = async (isInitial = false) => {
+    if (isInitial) setLoading(true);
     try {
       const [sosRes, incRes, userListRes] = await Promise.allSettled([
         getActiveSosAlerts(),
@@ -72,19 +72,17 @@ function TodaysCase() {
     } catch (err) {
       console.error("Failed to load today's cases analytics", err);
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   };
 
   useEffect(() => {
-    let cancelled = false;
-    async function loadData() {
-      if (!cancelled) {
-        await fetchAnalyticsData();
-      }
-    }
-    loadData();
-    return () => { cancelled = true; };
+    fetchAnalyticsData(true);
+    const interval = setInterval(() => {
+      fetchAnalyticsData(false);
+    }, 4000); // Frequently poll live database every 4 seconds
+
+    return () => clearInterval(interval);
   }, []);
 
   // SOS Analytics Calculations
@@ -102,20 +100,17 @@ function TodaysCase() {
   // 1. SOS Location Analytics Calculations
   const sosLocationMap = {};
   sosList.forEach((s) => {
-    let locName = "Coimbatore Central";
+    let locName = "Location Recorded";
     const addr = (s.address || s.location || "").toString();
     if (/karpagam|college|eachanari/i.test(addr)) locName = "Karpagam Campus / Eachanari";
     else if (/peelamedu|hope|tidel/i.test(addr)) locName = "Peelamedu Tech Hub";
     else if (/sundarapuram|sidco/i.test(addr)) locName = "Sundarapuram Industrial";
     else if (/gandhipuram|bus/i.test(addr)) locName = "Gandhipuram Sector";
     else if (addr && addr !== "Live GPS Location") locName = addr.split(",")[0];
+    else if (s.latitude && s.longitude) locName = `GPS (${s.latitude.toFixed(2)}, ${s.longitude.toFixed(2)})`;
     sosLocationMap[locName] = (sosLocationMap[locName] || 0) + 1;
   });
-  if (Object.keys(sosLocationMap).length < 2) {
-    sosLocationMap["Karpagam / Eachanari Zone"] = Math.max(sosActiveCount + 2, 3);
-    sosLocationMap["Peelamedu Tech Corridor"] = Math.max(sosDispatchedCount + 1, 2);
-    sosLocationMap["Gandhipuram Commercial Sector"] = 1;
-  }
+
   const sosLocEntries = Object.entries(sosLocationMap);
   const totalSosLoc = sosLocEntries.reduce((sum, [, val]) => sum + val, 0);
 
@@ -125,31 +120,27 @@ function TodaysCase() {
   // Conic gradient string for SOS Location Pie Chart
   let sosLocAcc = 0;
   const sosLocConicParts = sosLocEntries.map(([_, val], i) => {
-    const startDeg = (sosLocAcc / totalSosLoc) * 360;
+    const startDeg = (sosLocAcc / (totalSosLoc || 1)) * 360;
     sosLocAcc += val;
-    const endDeg = (sosLocAcc / totalSosLoc) * 360;
+    const endDeg = (sosLocAcc / (totalSosLoc || 1)) * 360;
     return `${LOC_COLORS[i % LOC_COLORS.length]} ${startDeg}deg ${endDeg}deg`;
   });
-  const sosLocConicGradient = sosLocConicParts.join(", ");
+  const sosLocConicGradient = sosLocConicParts.length > 0 ? sosLocConicParts.join(", ") : "#ef4444 0deg 360deg";
 
   // 2. Incident Reports Location / Area Analytics Calculations
   const incLocationMap = {};
   incidentsList.forEach((inc) => {
-    let locName = "Central Urban Sector";
+    let locName = "General Location";
     const locStr = (typeof inc.location === "object" ? inc.location?.address : (inc.address || inc.location || inc.category || "")).toString();
     if (/karpagam|campus|college/i.test(locStr)) locName = "College Campus Zone";
     else if (/peelamedu|tech|it/i.test(locStr)) locName = "Peelamedu Tech Park";
     else if (/gandhipuram|bus|station/i.test(locStr)) locName = "Transit / Bus Station Hub";
     else if (/harassment|stalking|women/i.test(locStr)) locName = "Women Safety Corridor";
     else if (inc.category) locName = `${inc.category} Zone`;
+    else if (locStr) locName = locStr.split(",")[0];
     incLocationMap[locName] = (incLocationMap[locName] || 0) + 1;
   });
-  if (Object.keys(incLocationMap).length < 2) {
-    incLocationMap["College Campus Safety Zone"] = 6;
-    incLocationMap["Peelamedu Tech Corridor"] = 4;
-    incLocationMap["Transit & Bus Station Hub"] = 3;
-    incLocationMap["Residential Sector"] = 2;
-  }
+
   const incLocEntries = Object.entries(incLocationMap);
   const totalIncLoc = incLocEntries.reduce((sum, [, val]) => sum + val, 0);
 
@@ -180,33 +171,6 @@ function TodaysCase() {
             <p style={{ color: "#9ca3af", margin: "4px 0 0 0", fontSize: "14px" }}>
               Comprehensive real-time reporting analytics for both User SOS Emergencies & Citizen Incident Reports
             </p>
-          </div>
-        </div>
-
-        {/* Top Metric Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-          <div style={{ background: "#111827", padding: "18px", borderRadius: "12px", border: "1px solid #374151" }}>
-            <span style={{ color: "#9ca3af", fontSize: "12px", textTransform: "uppercase", fontWeight: "bold" }}>Total SOS Emergencies</span>
-            <h1 style={{ color: "#ef4444", margin: "8px 0 0 0", fontSize: "28px" }}>{totalSos}</h1>
-            <span style={{ fontSize: "11px", color: "#f59e0b" }}>{sosActiveCount} Active Triggered</span>
-          </div>
-
-          <div style={{ background: "#111827", padding: "18px", borderRadius: "12px", border: "1px solid #374151" }}>
-            <span style={{ color: "#9ca3af", fontSize: "12px", textTransform: "uppercase", fontWeight: "bold" }}>Total Incident Reports</span>
-            <h1 style={{ color: "#60a5fa", margin: "8px 0 0 0", fontSize: "28px" }}>{totalIncidents}</h1>
-            <span style={{ fontSize: "11px", color: "#38bdf8" }}>{incPendingCount + incInvestigationCount} Open Cases</span>
-          </div>
-
-          <div style={{ background: "#111827", padding: "18px", borderRadius: "12px", border: "1px solid #374151" }}>
-            <span style={{ color: "#9ca3af", fontSize: "12px", textTransform: "uppercase", fontWeight: "bold" }}>Patrol Dispatches</span>
-            <h1 style={{ color: "#f59e0b", margin: "8px 0 0 0", fontSize: "28px" }}>{sosDispatchedCount}</h1>
-            <span style={{ fontSize: "11px", color: "#10b981" }}>Police En Route</span>
-          </div>
-
-          <div style={{ background: "#111827", padding: "18px", borderRadius: "12px", border: "1px solid #374151" }}>
-            <span style={{ color: "#9ca3af", fontSize: "12px", textTransform: "uppercase", fontWeight: "bold" }}>Total Cases Resolved</span>
-            <h1 style={{ color: "#10b981", margin: "8px 0 0 0", fontSize: "28px" }}>{sosResolvedCount + incResolvedCount}</h1>
-            <span style={{ fontSize: "11px", color: "#10b981" }}>Resolved Successfully</span>
           </div>
         </div>
 
