@@ -84,7 +84,15 @@ function AIAssistant() {
         "📞 What are the national emergency helpline numbers?",
         "🛡️ What are essential self-defense safety tactics?",
         "📋 How do I file an incident report with evidence?",
-        "📱 How to manage emergency contacts?"
+        "📱 How to manage emergency contacts?",
+        "🚃 Bus & public transit safety advice?",
+        "💻 Online harassment & Cyber crime helpline?",
+        "🏫 Campus, college & hostel safety tips?",
+        "🏢 Workplace & office harassment guidelines?",
+        "🗺️ How do Safe Zones & safety scores work?",
+        "🚗 What to do if vehicle breaks down at night?",
+        "🔊 Personal safety gear & pepper spray guide?",
+        "🏠 PG & rental apartment safety checklist"
     ];
 
     return (

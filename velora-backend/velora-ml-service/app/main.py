@@ -1,8 +1,4 @@
-"""
-Velora Machine Learning Safety Analytics Microservice
-Provides AI/ML Predictive Risk Analysis, Incident Probability Estimation,
-Optimal Departure Time Recommendation, and Risk Zone Generation.
-"""
+
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
