@@ -16,7 +16,7 @@ function Sidebar({ collapse }) {
 
   const handleLogout = () => {
     logout();
-    navigate("/police/login");
+    navigate("/login");
   };
 
   return (

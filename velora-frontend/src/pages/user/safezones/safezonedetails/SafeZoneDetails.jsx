@@ -90,31 +90,51 @@ function SafeZoneDetails() {
 
     /* Fetch backend DB safe zones */
     useEffect(() => {
+        let active = true;
         const fetchML = async () => {
             try {
                 const ml = await fetchRealtimeMLMarkedZones();
-                if (Array.isArray(ml)) {
+                if (active && Array.isArray(ml)) {
                     setRealtimeMLZones(ml);
                 }
             } catch (err) {
                 console.warn("Fetch ML zones error:", err);
             } finally {
-                setLoading(false);
+                if (active) setLoading(false);
             }
         };
         fetchML();
-        const interval = setInterval(fetchML, 1000);
-        return () => clearInterval(interval);
+
+        window.addEventListener("velora_zone_updated", fetchML);
+        window.addEventListener("storage", fetchML);
+
+        return () => {
+            active = false;
+            window.removeEventListener("velora_zone_updated", fetchML);
+            window.removeEventListener("storage", fetchML);
+        };
     }, []);
 
-    /* Hotspot overlay for the map in 10 km radius */
+    /* Hotspot overlay for the map - ONLY GREEN SAFE ZONES */
     const hotspots = useMemo(() => {
         if (!realtimeMLZones || realtimeMLZones.length === 0) return [];
 
         return realtimeMLZones
             .map((z, idx) => {
-                const lat = parseFloat(z.latitude || z.lat || 28.6139);
-                const lng = parseFloat(z.longitude || z.lng || 77.2090);
+                const lat = parseFloat(z.latitude || z.lat || 10.8795);
+                const lng = parseFloat(z.longitude || z.lng || 77.0223);
+                const cat = String(z.zone || z.level || "safe").toLowerCase();
+                const score = Number(z.safetyScore ?? z.score ?? 95);
+
+                const isUnsafeOrModerate =
+                    cat.includes("unsafe") ||
+                    cat.includes("moderate") ||
+                    cat.includes("red") ||
+                    cat.includes("yellow") ||
+                    cat.includes("high") ||
+                    score < 75;
+
+                const isGreen = !isUnsafeOrModerate;
                 const dist = currentPosition ? haversineKm(currentPosition.lat, currentPosition.lng, lat, lng) : 0;
 
                 return {
@@ -122,30 +142,43 @@ function SafeZoneDetails() {
                     lat,
                     lng,
                     distanceKm: dist,
-                    score: z.score || (z.zone === "unsafe" ? 28 : z.zone === "moderate" ? 62 : 94),
+                    score,
                     radiusMeters: z.radiusMeters || 450,
-                    level: z.level || (z.zone === "unsafe" ? "HIGH_RISK" : z.zone === "moderate" ? "MODERATE_RISK" : "SAFE"),
-                    label: z.name || z.description || "Admin ML Marked Zone",
-                    color: z.color || (z.zone === "unsafe" ? "#FF5252" : z.zone === "moderate" ? "#FFC107" : "#00E676"),
-                    fill: z.fill || (z.color ? z.color + "33" : "#00E67633")
+                    level: "SAFE",
+                    label: z.name || z.description || "Admin ML Marked Safe Zone",
+                    color: "#00E676",
+                    fill: "#00E67633",
+                    isGreen
                 };
             })
+            .filter((h) => h.isGreen)
             .filter((h) => !currentPosition || h.distanceKm <= 10.0 || realtimeMLZones.length <= 5);
     }, [realtimeMLZones, currentPosition]);
 
-    /* List ALL non-duplicate green safe zones within 10 km radius */
+    /* List ALL non-duplicate green safe zones strictly in ASCENDING order of distance */
     const all10kmSafeZones = useMemo(() => {
-        if (!realtimeMLZones || realtimeMLZones.length === 0) {
-            return generateSampleSafeZones(currentPosition?.lat, currentPosition?.lng);
+        let rawList = realtimeMLZones;
+        if (!rawList || rawList.length === 0) {
+            rawList = generateSampleSafeZones(currentPosition?.lat, currentPosition?.lng);
         }
 
-        const mapped = realtimeMLZones
+        const mapped = rawList
             .map((z, idx) => {
-                const lat = parseFloat(z.latitude || z.lat || 28.6139);
-                const lng = parseFloat(z.longitude || z.lng || 77.2090);
-                const cat = (z.zone || z.level || "safe").toLowerCase();
-                const score = z.safetyScore || z.score || 95;
-                const isGreen = cat.includes("safe") || cat.includes("green") || score >= 90;
+                const lat = parseFloat(z.latitude || z.lat || 10.8795);
+                const lng = parseFloat(z.longitude || z.lng || 77.0223);
+                const cat = String(z.zone || z.level || "safe").toLowerCase();
+                const score = Number(z.safetyScore ?? z.score ?? 95);
+
+                // Strict check: Exclude unsafe (red) & moderate (yellow) zones completely
+                const isUnsafeOrModerate =
+                    cat.includes("unsafe") ||
+                    cat.includes("moderate") ||
+                    cat.includes("red") ||
+                    cat.includes("yellow") ||
+                    cat.includes("high") ||
+                    score < 75;
+
+                const isGreen = !isUnsafeOrModerate;
                 const dist = currentPosition ? haversineKm(currentPosition.lat, currentPosition.lng, lat, lng) : 0;
 
                 return {
@@ -161,9 +194,7 @@ function SafeZoneDetails() {
                     isGreen
                 };
             })
-            .filter((z) => z.isGreen)
-            .filter((z) => !currentPosition || z.distanceKm <= 10.0 || realtimeMLZones.length <= 5)
-            .sort((a, b) => a.distanceKm - b.distanceKm);
+            .filter((z) => z.isGreen);
 
         // Deduplicate by name
         const uniqueDict = {};
@@ -174,7 +205,12 @@ function SafeZoneDetails() {
             }
         });
 
-        return Object.values(uniqueDict);
+        const list = Object.values(uniqueDict);
+
+        // Sort in ASCENDING order by distance in km (closest first)
+        list.sort((a, b) => a.distanceKm - b.distanceKm);
+
+        return list;
     }, [realtimeMLZones, currentPosition]);
 
     const handleNavigateToZone = (targetZone) => {

@@ -102,23 +102,8 @@ function SafetyAnalysis() {
     }).join(" ");
   }, [radarVectors]);
 
-  // Crime Reports Breakdown Data
-  const crimeCategories = [
-    { name: "Unsafe Lighting", pct: 35, count: 7, color: "#FFC107" },
-    { name: "Harassment Reports", pct: 30, count: 6, color: "#FF5252" },
-    { name: "Suspicious Activity", pct: 20, count: 4, color: "#60A5FA" },
-    { name: "Stalking Concerns", pct: 15, count: 3, color: "#A855F7" }
-  ];
-
-  // Monthly Crime Trend Data
-  const monthlyTrend = [
-    { month: "Jan", count: 5 },
-    { month: "Feb", count: 4 },
-    { month: "Mar", count: 6 },
-    { month: "Apr", count: 3 },
-    { month: "May", count: 4 },
-    { month: "Jun", count: incidentsCount }
-  ];
+  // Crime Reports Breakdown Data (100% Dynamic from Backend ML Service)
+  const crimeCategories = mlData?.crimeCategories || [];
 
   return (
     <UserLayout>
@@ -216,28 +201,6 @@ function SafetyAnalysis() {
                 </div>
               ))}
             </div>
-
-            {/* Monthly Trend Mini Bar Graph */}
-            <div>
-              <div style={{ fontSize: "13px", color: "#9ca3af", marginBottom: "10px", fontWeight: "600" }}>6-Month Incident Trend (Jan – Jun)</div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: "12px", height: "70px", padding: "10px", background: "#111827", borderRadius: "8px" }}>
-                {monthlyTrend.map((m, i) => (
-                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
-                    <div
-                      style={{
-                        width: "100%",
-                        height: `${(m.count / 8) * 45}px`,
-                        background: i === monthlyTrend.length - 1 ? color : "#4b5563",
-                        borderRadius: "4px",
-                        transition: "height 0.5s ease"
-                      }}
-                      title={`${m.month}: ${m.count} incidents`}
-                    />
-                    <span style={{ fontSize: "10px", color: "#9ca3af" }}>{m.month}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
 
@@ -254,11 +217,7 @@ function SafetyAnalysis() {
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "12px" }}>
-            {(aiAnalysis?.tips || [
-              "🛡️ Area is heavily monitored with active police patrol coverage.",
-              "💡 Street lighting is well-maintained along primary thoroughfares.",
-              "📱 Keep Velora SOS on quick access during late-night travel."
-            ]).map((tip, i) => (
+            {(mlData?.tips || aiAnalysis?.tips || []).map((tip, i) => (
               <div key={i} style={{ background: "#111827", padding: "12px 14px", borderRadius: "8px", color: "#d1d5db", fontSize: "13px", border: "1px solid #374151" }}>
                 {tip}
               </div>

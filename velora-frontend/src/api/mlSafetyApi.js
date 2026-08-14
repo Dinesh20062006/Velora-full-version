@@ -175,45 +175,46 @@ export async function classifyMLZone(latitude, longitude, zone, description = ""
  * Fetch all live ML marked zones in real-time.
  */
 export async function fetchRealtimeMLMarkedZones(lat, lng) {
-  // 1. Try Java Admin Backend (port 8080 or 8087) which merges MySQL safe_zones + ML predictions
+  let localAdminZones = [];
   try {
-    const res = await axios.get("http://localhost:8080/api/v1/admin/ml-zones", { timeout: 2500 });
-    if (res?.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
-      return res.data.data;
+    const rawLocal = localStorage.getItem("velora_admin_ml_zones");
+    if (rawLocal) {
+      localAdminZones = JSON.parse(rawLocal);
     }
   } catch {
-    try {
-      const resAdmin = await axios.get("http://localhost:8087/api/v1/admin/ml-zones", { timeout: 2500 });
-      if (resAdmin?.data?.success && Array.isArray(resAdmin.data.data) && resAdmin.data.data.length > 0) {
-        return resAdmin.data.data;
-      }
-    } catch {
-      try {
-        const resSafety = await axios.get("http://localhost:8083/api/v1/safety/safe-zones", { timeout: 2500 });
-        if (resSafety?.data?.data?.content && Array.isArray(resSafety.data.data.content)) {
-          return resSafety.data.data.content;
-        }
-      } catch {
-        /* ignore safety service fallback error */
-      }
-    }
+    localAdminZones = [];
   }
 
-  // 2. Direct Python ML service fallback (port 8000)
+  // 1. Primary: Python ML microservice (velora-ml-service on port 8000)
   try {
     const res = await mlClient.get("/api/v1/ml/marked-zones");
     if (res?.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
-      return res.data.data;
+      return [...localAdminZones, ...res.data.data];
     }
   } catch {
     /* ignore python ml service fallback error */
   }
 
+  // 2. Secondary fallback: Java Admin Backend (port 8080) only if primary is empty/offline
+  try {
+    const res = await axios.get("http://localhost:8080/api/v1/admin/ml-zones", { timeout: 1000 });
+    if (res?.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+      return [...localAdminZones, ...res.data.data];
+    }
+  } catch {
+    /* ignore backend error */
+  }
+
+  if (localAdminZones.length > 0) {
+    return localAdminZones;
+  }
+
   // 3. Fallback predictive marked zones centered around user coordinates
-  const effectiveLat = lat ?? 13.0827;
-  const effectiveLng = lng ?? 80.2707;
+  const effectiveLat = lat ?? 10.8795;
+  const effectiveLng = lng ?? 77.0223;
 
   return [
+    ...localAdminZones,
     {
       id: "ml_zone_init_1",
       name: "Central Metro Security Hub",
@@ -223,7 +224,7 @@ export async function fetchRealtimeMLMarkedZones(lat, lng) {
       zone: "safe",
       score: 94.5,
       level: "SAFE",
-      label: "Safe Zone (75-100)",
+      label: "Safe Zone (75-95)",
       color: "#00E676",
       fill: "#00E67633",
       radiusMeters: 450,
@@ -238,7 +239,7 @@ export async function fetchRealtimeMLMarkedZones(lat, lng) {
       zone: "safe",
       score: 91.0,
       level: "SAFE",
-      label: "Safe Zone (75-100)",
+      label: "Safe Zone (75-95)",
       color: "#00E676",
       fill: "#00E67633",
       radiusMeters: 400,
@@ -253,7 +254,7 @@ export async function fetchRealtimeMLMarkedZones(lat, lng) {
       zone: "moderate",
       score: 62.0,
       level: "MODERATE_RISK",
-      label: "Moderate Risk Zone (45-74)",
+      label: "Moderate Risk Zone (40-75)",
       color: "#FFC107",
       fill: "#FFC10733",
       radiusMeters: 500,

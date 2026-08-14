@@ -152,7 +152,7 @@ function Registration() {
 
             <button
               className="login-btn"
-              onClick={() => navigate("/police/login")}
+              onClick={() => navigate("/login")}
             >
               Login
             </button>

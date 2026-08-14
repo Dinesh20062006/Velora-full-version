@@ -46,27 +46,32 @@ function Login() {
   return (
     <div className="login">
       <div className="login-container">
-        <img src={loginImage} alt="Login" className="login-image" />
-        <h1>Welcome Back</h1>
-        <p>Sign in to continue to Velora</p>
-
-        {error && <p className="error-text" style={{ color: "red", margin: "8px 0" }}>{error}</p>}
-
-        <Input type="text" placeholder="Email or Phone Number" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-
-        <div className="forgot-password">
-          <Link to="/forgot-password">Forgot Password?</Link>
+        <div className="login-left">
+          <img src={loginImage} alt="Login" className="login-image" />
         </div>
 
-        <Button text={loading ? "Signing in..." : "Login"} onClick={handleLogin} disabled={loading} />
+        <div className="login-right">
+          <h1>Welcome Back</h1>
+          <p>Sign in to continue to Velora</p>
 
-        <div className="signup-link">
-          Don't have an account? <Link to="/signup">Sign Up</Link>
-        </div>
+          {error && <p className="error-text" style={{ color: "red", margin: "8px 0" }}>{error}</p>}
 
-        <div className="signup-link" style={{ marginTop: "12px" }}>
-          Portal Access: <span style={{ color: "#3182ce", cursor: "pointer", textDecoration: "underline" }} onClick={() => navigate("/police/login")}>Police Portal</span> | <span style={{ color: "#3182ce", cursor: "pointer", textDecoration: "underline" }} onClick={() => navigate("/admin/login")}>Admin Portal</span>
+          <Input type="text" placeholder="Email or Phone Number" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+
+          <div className="forgot-password">
+            <Link to="/forgot-password">Forgot Password?</Link>
+          </div>
+
+          <Button text={loading ? "Signing in..." : "Login"} onClick={handleLogin} disabled={loading} />
+
+          <div className="signup-link">
+            Don't have an account? <Link to="/signup">Sign Up</Link>
+          </div>
+
+          <div className="signup-link" style={{ marginTop: "12px" }}>
+            Portal Access: <span style={{ color: "#3182ce", cursor: "pointer", textDecoration: "underline" }} onClick={() => navigate("/police/register")}>Police Portal</span>
+          </div>
         </div>
       </div>
     </div>

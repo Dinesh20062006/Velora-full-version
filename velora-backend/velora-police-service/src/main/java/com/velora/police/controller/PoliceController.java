@@ -91,6 +91,23 @@ public class PoliceController {
         return ResponseEntity.ok(ApiResponse.success("Police response unit dispatched successfully", response));
     }
 
+    @PutMapping("/sos-alerts/{id}/status")
+    @Operation(summary = "Update SOS alert status (e.g. RESOLVED, FALSE_ALARM)")
+    public ResponseEntity<ApiResponse<SosAlertDto>> updateSosAlertStatus(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        String status = body.getOrDefault("status", "RESOLVED").toString();
+        Long policeId = null;
+        try {
+            if (body.get("officerId") != null) {
+                policeId = Long.parseLong(body.get("officerId").toString().replace("off_", ""));
+            }
+        } catch (Exception ignored) {}
+        
+        SosAlertDto updated = policeService.updateSosStatus(id, status, policeId);
+        return ResponseEntity.ok(ApiResponse.success("SOS Alert status updated successfully", updated));
+    }
+
     @GetMapping("/officers")
     @Operation(summary = "Get available police officers")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAvailableOfficers() {

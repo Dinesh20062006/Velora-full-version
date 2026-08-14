@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import "../police style/index.css";
 
 import Registration from "../police page/Registration.jsx";
-import Login from "../police page/login.jsx";
 import ForgotPassword from "../police page/ForgotPassword.jsx";
 import OTP from "../police page/OTP.jsx";
 
@@ -20,11 +19,11 @@ function Policeroute() {
   return (
     <Routes>
       {/* Index route for /police */}
-      <Route index element={<Navigate to="login" replace />} />
+      <Route index element={<Navigate to="register" replace />} />
 
       {/* Public Authentication Pages */}
       <Route path="register" element={<Registration />} />
-      <Route path="login" element={<Login />} />
+      <Route path="login" element={<Navigate to="/login" replace />} />
       <Route path="forgotpassword" element={<ForgotPassword />} />
       <Route path="otp" element={<OTP />} />
 
@@ -43,7 +42,7 @@ function Policeroute() {
       <Route path="patrol" element={<ProtectedRoute allowedRoles={["POLICE"]}><Dashboard /></ProtectedRoute>} />
 
       {/* Catch-all fallback */}
-      <Route path="*" element={<Navigate to="login" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import UserLayout from "../../../../layouts/UserLayout";
 import Input from "../../../../common/Input/Input";
 import Button from "../../../../common/Button/Button";
-import { sendChatMessage, getChatHistory } from "../../../../api/aiApi";
+import { sendChatMessage, getChatHistory, saveLocalChatHistory, clearLocalChatHistory } from "../../../../api/aiApi";
 import { FaRobot, FaUser, FaTrashAlt, FaShieldAlt } from "react-icons/fa";
 
 function AIAssistant() {
@@ -11,11 +11,14 @@ function AIAssistant() {
         {
             id: "welcome-msg",
             sender: "AI",
-            response: "👋 Hello! I am Velora AI Safety Assistant, your 24/7 intelligent safety advisor. Ask me anything about emergency precautions, safe travel, self-defense tactics, or helpline contacts."
+            response: "👋 Hello! I am Velora AI Safety Assistant (Powered by Google Gemini). Ask me anything about emergency precautions, safe travel, self-defense tactics, or helpline contacts."
         }
     ]);
     const [loading, setLoading] = useState(false);
     const chatEndRef = useRef(null);
+
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_AI_API_KEY || "";
+    const isGeminiConnected = Boolean(apiKey && apiKey.trim().length > 10);
 
     useEffect(() => {
         getChatHistory()
@@ -30,6 +33,9 @@ function AIAssistant() {
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        if (messages.length > 0) {
+            saveLocalChatHistory(messages);
+        }
     }, [messages, loading]);
 
     const handleAsk = async (queryToAsk) => {
@@ -67,13 +73,15 @@ function AIAssistant() {
     };
 
     const clearChat = () => {
-        setMessages([
+        const initial = [
             {
                 id: "welcome-msg",
                 sender: "AI",
-                response: "👋 Hello! I am Velora AI Safety Assistant, your 24/7 intelligent safety advisor. Ask me anything about emergency precautions, safe travel, self-defense tactics, or helpline contacts."
+                response: "👋 Hello! I am Velora AI Safety Assistant (Powered by Google Gemini). Ask me anything about emergency precautions, safe travel, self-defense tactics, or helpline contacts."
             }
-        ]);
+        ];
+        clearLocalChatHistory();
+        setMessages(initial);
     };
 
     const quickPrompts = [
@@ -95,13 +103,83 @@ function AIAssistant() {
         "🏠 PG & rental apartment safety checklist"
     ];
 
+    const formatAiMessage = (rawText) => {
+        if (!rawText) return "";
+        let clean = rawText
+            .replace(/```[a-z]*\n?/gi, "")
+            .replace(/```/g, "")
+            .trim();
+
+        const lines = clean.split("\n");
+        return lines.map((line, idx) => {
+            let trimmed = line.trim();
+            if (!trimmed) return <div key={idx} style={{ height: "6px" }} />;
+
+            // Bullet point formatting (* or - or •)
+            if (trimmed.startsWith("* ") || trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+                const bulletText = trimmed.replace(/^[\*\-\•]\s*/, "");
+                const bulletParts = bulletText.split(/(\*\*.*?\*\*)/g).map((part, pIdx) => {
+                    if (part.startsWith("**") && part.endsWith("**")) {
+                        return <strong key={pIdx} style={{ color: "#93c5fd", fontWeight: "700" }}>{part.slice(2, -2)}</strong>;
+                    }
+                    return part;
+                });
+                return (
+                    <div key={idx} style={{ display: "flex", gap: "8px", margin: "4px 0", paddingLeft: "4px" }}>
+                        <span style={{ color: "#3b82f6", fontWeight: "bold" }}>•</span>
+                        <div style={{ flex: 1 }}>{bulletParts}</div>
+                    </div>
+                );
+            }
+
+            // Headings (# or ## or ###)
+            if (trimmed.startsWith("#")) {
+                const headingText = trimmed.replace(/^#+\s*/, "");
+                return (
+                    <div key={idx} style={{ fontSize: "15px", fontWeight: "700", color: "#60a5fa", marginTop: "10px", marginBottom: "4px" }}>
+                        {headingText}
+                    </div>
+                );
+            }
+
+            // Regular line with **bold** parsing
+            const parts = trimmed.split(/(\*\*.*?\*\*)/g);
+            const lineContent = parts.map((part, pIdx) => {
+                if (part.startsWith("**") && part.endsWith("**")) {
+                    return <strong key={pIdx} style={{ color: "#93c5fd", fontWeight: "700" }}>{part.slice(2, -2)}</strong>;
+                }
+                return part;
+            });
+
+            return (
+                <div key={idx} style={{ marginBottom: "4px" }}>
+                    {lineContent}
+                </div>
+            );
+        });
+    };
+
     return (
         <UserLayout>
             <div className="ai" style={{ maxWidth: "850px", margin: "0 auto", padding: "20px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
                     <div>
-                        <h1 style={{ fontSize: "28px", color: "#f9fafb", marginBottom: "4px", display: "flex", alignItems: "center", gap: "10px" }}>
-                            <FaShieldAlt style={{ color: "#3b82f6" }} /> AI Safety Assistant
+                        <h1 style={{ fontSize: "28px", color: "#f9fafb", marginBottom: "4px", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                            <FaShieldAlt style={{ color: "#3b82f6" }} /> Velora AI Safety Assistant
+                            <span style={{
+                                background: isGeminiConnected ? "rgba(16, 185, 129, 0.15)" : "rgba(59, 130, 246, 0.15)",
+                                border: isGeminiConnected ? "1px solid #10b981" : "1px solid #3b82f6",
+                                color: isGeminiConnected ? "#10b981" : "#60a5fa",
+                                padding: "4px 12px",
+                                borderRadius: "20px",
+                                fontSize: "12px",
+                                fontWeight: "600",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "6px"
+                            }}>
+                                {isGeminiConnected ? "🟢 Google Gemini 3.6 Flash Active" : "✨ Google Gemini AI Engine"}
+                            </span>
                         </h1>
                         <p style={{ color: "#9ca3af" }}>Ask anything related to your personal safety and emergency guidance.</p>
                     </div>
@@ -183,7 +261,7 @@ function AIAssistant() {
                                     </div>
                                 )}
                                 <div style={{
-                                    maxWidth: "75%",
+                                    maxWidth: "80%",
                                     background: isUser ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" : "#1f2937",
                                     color: "#f9fafb",
                                     padding: "14px 18px",
@@ -192,12 +270,12 @@ function AIAssistant() {
                                     boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
                                 }}>
                                     {!isUser && (
-                                        <span style={{ fontSize: "11px", color: "#60a5fa", fontWeight: "600", display: "block", marginBottom: "6px" }}>
+                                        <span style={{ fontSize: "11px", color: "#60a5fa", fontWeight: "600", display: "block", marginBottom: "8px", letterSpacing: "0.5px" }}>
                                             🛡️ VELORA AI SAFETY ASSISTANT
                                         </span>
                                     )}
-                                    <div style={{ fontSize: "14px", lineHeight: "1.6", whiteSpace: "pre-line" }}>
-                                        {text}
+                                    <div style={{ fontSize: "14px", lineHeight: "1.6" }}>
+                                        {isUser ? text : formatAiMessage(text)}
                                     </div>
                                 </div>
                                 {isUser && (

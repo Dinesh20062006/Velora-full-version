@@ -41,12 +41,10 @@ import QuerySubmitted from "../pages/user/profile/QuerySubmitted";
 import Policeroute from "../pages/police/policeroute/Policeroute";
 
 // Admin Module Imports
-import AdminLogin from "../pages/admin/AdminLogin";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import UserManagement from "../pages/admin/UserManagement";
 import SafeZoneManagement from "../pages/admin/SafeZoneManagement";
 import SystemHealth from "../pages/admin/SystemHealth";
-import AuditLogs from "../pages/admin/AuditLogs";
 
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -60,13 +58,12 @@ function AppRoutes() {
                 <Route path="/police/*" element={<Policeroute />} />
 
                 {/* Admin Module Routes - Accessible ONLY to ADMIN users */}
-                <Route path="/admin/login" element={<AdminLogin />} />
+                <Route path="/admin/login" element={<Navigate to="/login" replace />} />
                 <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
                 <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminDashboard /></ProtectedRoute>} />
                 <Route path="/admin/users" element={<ProtectedRoute allowedRoles={["ADMIN"]}><UserManagement /></ProtectedRoute>} />
                 <Route path="/admin/safezones" element={<ProtectedRoute allowedRoles={["ADMIN"]}><SafeZoneManagement /></ProtectedRoute>} />
                 <Route path="/admin/health" element={<ProtectedRoute allowedRoles={["ADMIN"]}><SystemHealth /></ProtectedRoute>} />
-                <Route path="/admin/audit-logs" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AuditLogs /></ProtectedRoute>} />
 
                 {/* User Module Auth Routes */}
                 <Route path="/onboarding1" element={<Onboarding1 />} />

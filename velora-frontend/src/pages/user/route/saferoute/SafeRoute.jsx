@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaCrosshairs } from "react-icons/fa";
 
@@ -194,12 +194,13 @@ function RouteRenderer({ origin, destination, onRouteFound }) {
     ) : null;
 }
 
+const DEFAULT_LOCATION = { lat: 12.9716, lng: 77.5946 };
+
 function SafeRoute() {
     const navigate = useNavigate();
 
-    const DEFAULT_LOCATION = { lat: 10.8795, lng: 77.0223 };
     const [currentPosition, setCurrentPosition] = useState(DEFAULT_LOCATION);
-    const [currentLocationText, setCurrentLocationText] = useState("Karpagam College of Engineering, Coimbatore");
+    const [currentLocationText, setCurrentLocationText] = useState("📍 Current Location (Detecting GPS...)");
     const [destination, setDestination] = useState("");
     const [routeRequest, setRouteRequest] = useState(null);
     const [routeInfo, setRouteInfo] = useState({
@@ -211,57 +212,73 @@ function SafeRoute() {
     const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim();
     const hasMapsApiKey = Boolean(mapsApiKey);
 
-    /* Detect user's current location */
+    // Reverse geocode lat/lng to readable location
+    const reverseGeocode = async (lat, lng) => {
+        try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+            const data = await res.json();
+            if (data && data.display_name) {
+                const parts = data.display_name.split(",");
+                const shortAddress = parts.slice(0, 3).join(",").trim();
+                return `📍 Current Location (${shortAddress || data.display_name})`;
+            }
+        } catch {}
+        return `📍 Current Location (${lat.toFixed(4)}°, ${lng.toFixed(4)}°)`;
+    };
+
+    const updatePosition = useCallback(async (lat, lng) => {
+        const pos = { lat, lng };
+        setCurrentPosition(pos);
+        const addrText = await reverseGeocode(lat, lng);
+        setCurrentLocationText(addrText);
+    }, []);
+
+    /* Detect user's current live location */
     useEffect(() => {
         if (!navigator.geolocation) {
-            setCurrentLocationText("Karpagam College of Engineering, Coimbatore");
+            setCurrentLocationText("📍 Current Location (GPS Unavailable)");
             return;
         }
 
         const handleSuccess = (position) => {
-            const userPosition = {
-                lat: position.coords.latitude,
-                lng: position.coords.longitude
-            };
-            setCurrentPosition(userPosition);
-            setCurrentLocationText(`GPS Verified (${userPosition.lat.toFixed(3)}°, ${userPosition.lng.toFixed(3)}°)`);
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            updatePosition(lat, lng);
         };
 
         const handleFallback = () => {
-            setCurrentPosition(DEFAULT_LOCATION);
-            setCurrentLocationText("Karpagam College of Engineering, Coimbatore");
+            updatePosition(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng);
         };
 
-        // Try standard location first (fast Wi-Fi/IP, zero timeout issues)
         navigator.geolocation.getCurrentPosition(
             handleSuccess,
             () => {
-                // Second attempt with high accuracy if available
                 navigator.geolocation.getCurrentPosition(
                     handleSuccess,
                     handleFallback,
-                    { enableHighAccuracy: true, timeout: 5000 }
+                    { enableHighAccuracy: true, timeout: 6000 }
                 );
             },
-            { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 }
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
         );
 
         const watchId = navigator.geolocation.watchPosition(
             handleSuccess,
             null,
-            { enableHighAccuracy: false }
+            { enableHighAccuracy: true }
         );
 
         return () => navigator.geolocation.clearWatch(watchId);
-    }, []);
+    }, [updatePosition]);
 
     const [realtimeMLZones, setRealtimeMLZones] = useState([]);
 
     useEffect(() => {
+        let isMounted = true;
         const fetchML = async () => {
             try {
                 const ml = await fetchRealtimeMLMarkedZones(currentPosition?.lat, currentPosition?.lng);
-                if (Array.isArray(ml)) {
+                if (isMounted && Array.isArray(ml)) {
                     setRealtimeMLZones(ml);
                 }
             } catch (err) {
@@ -269,9 +286,16 @@ function SafeRoute() {
             }
         };
         fetchML();
-        const interval = setInterval(fetchML, 1000); // 1-second live sync
-        return () => clearInterval(interval);
-    }, [currentPosition]);
+
+        window.addEventListener("velora_zone_updated", fetchML);
+        window.addEventListener("storage", fetchML);
+
+        return () => {
+            isMounted = false;
+            window.removeEventListener("velora_zone_updated", fetchML);
+            window.removeEventListener("storage", fetchML);
+        };
+    }, []);
 
     const hotspots = useMemo(() => {
         return formatMLMarkedZonesForMap(realtimeMLZones);
@@ -287,10 +311,9 @@ function SafeRoute() {
         );
     }, [currentPosition, routeInfo.destinationPosition, routeInfo.routePath, hotspots]);
 
-
     const handleFindRoute = () => {
         if (!currentPosition) {
-            alert("Please wait for current location detection.");
+            alert("Detecting live current location, please wait a moment...");
             return;
         }
 
@@ -304,6 +327,7 @@ function SafeRoute() {
             duration: "--"
         });
 
+        // Always set starting point (origin) to live current GPS location
         setRouteRequest({
             origin: currentPosition,
             destination: destination.trim()
@@ -326,18 +350,28 @@ function SafeRoute() {
         });
     };
 
+    const handleRecenter = () => {
+        setRecenterCount((count) => count + 1);
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                updatePosition(pos.coords.latitude, pos.coords.longitude);
+            }, null, { enableHighAccuracy: true });
+        }
+    };
+
     return (
         <UserLayout>
             <div className="safe-route">
                 <h1>Safe Route</h1>
 
-                <p>Find the safest route to your destination.</p>
+                <p>Find the safest route starting from your current location.</p>
 
                 <div className="route-form">
                     <Input
                         type="text"
                         value={currentLocationText}
                         readOnly
+                        style={{ fontWeight: "600", color: "#6C63FF" }}
                     />
 
                     <Input
@@ -365,11 +399,9 @@ function SafeRoute() {
                         {hasMapsApiKey ? (
                             <APIProvider apiKey={mapsApiKey}>
                                 <Map
-                                    defaultCenter={{
-                                        lat: 10.8795,
-                                        lng: 77.0223
-                                    }}
-                                    defaultZoom={13}
+                                    center={currentPosition}
+                                    defaultCenter={currentPosition}
+                                    defaultZoom={15}
                                     mapId="DEMO_MAP_ID"
                                     gestureHandling="greedy"
                                     mapTypeControl={false}
@@ -387,7 +419,7 @@ function SafeRoute() {
                                     {currentPosition && (
                                         <AdvancedMarker
                                             position={currentPosition}
-                                            title="Your Current Location"
+                                            title="Starting Point (Your Current Location)"
                                         >
                                             <Pin
                                                 background="#FF1744"
@@ -419,9 +451,7 @@ function SafeRoute() {
                         type="button"
                         className="recenter-button"
                         title="Recenter to current location"
-                        onClick={() =>
-                            setRecenterCount((count) => count + 1)
-                        }
+                        onClick={handleRecenter}
                     >
                         <FaCrosshairs />
                     </button>
@@ -453,7 +483,7 @@ function SafeRoute() {
                         >
                             {currentSafety
                                 ? `${currentSafety.score} / 100`
-                                : "-- / 100"}
+                                : "0 / 100"}
                         </p>
                         {currentSafety && (
                             <span className="info-card-tag" style={{ background: `${currentSafety.color}22`, color: currentSafety.color, border: `1px solid ${currentSafety.color}66` }}>

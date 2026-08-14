@@ -1,99 +1,47 @@
 import axios from "axios";
 import client from "./client";
 
-const AI_SERVICE_URL = import.meta.env.VITE_AI_SERVICE_URL || "http://localhost:8084";
+const AI_SERVICE_URL = import.meta.env.VITE_AI_SERVICE_URL || "http://localhost:8000";
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_AI_API_KEY || "";
 
 const aiClient = axios.create({
   baseURL: AI_SERVICE_URL,
   headers: { "Content-Type": "application/json" },
-  timeout: 5000,
+  timeout: 25000,
 });
 
 export const sendChatMessage = async (message) => {
   const queryText = typeof message === "string" ? message : (message?.message || "");
 
-  // 1. Try Backend Gateway Service
-  try {
-    const r = await client.post("/ai/chat", { message: queryText });
-    if (r?.data?.data?.message || r?.data?.message) {
-      return r.data;
-    }
-  } catch {
-    // Service offline, continue to next provider
-  }
-
-  // 2. Try Direct AI Microservice on Port 8084
+  // 1. Primary: Call Python ML Microservice on Port 8000 (Proxy for Gemini AI)
   try {
     const r = await aiClient.post("/api/v1/ai/chat", { message: queryText });
     if (r?.data?.data?.message || r?.data?.message) {
       return r.data;
     }
   } catch {
-    // Microservice offline, continue to next provider
+    // Backend offline or unreachable
   }
 
-  // 3. Try Google Gemini API if valid AIza key is present in .env
-  if (GEMINI_API_KEY && GEMINI_API_KEY.startsWith("AIzaSy")) {
+  // 2. Direct Browser Gemini AI Fallback (if backend is offline)
+  if (GEMINI_API_KEY && GEMINI_API_KEY.trim().length > 10) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-      const systemPrompt = "You are Velora AI, an intelligent 24/7 Women's Safety Assistant. Provide clear, empathetic, and actionable safety guidance for emergency instructions, safe route precautions, and incident prevention.";
+      const key = GEMINI_API_KEY.trim();
+      const systemPrompt = "You are Velora AI, an intelligent 24/7 Women's Safety Assistant. Provide clear, empathetic, and actionable safety guidance for emergency instructions, safe route precautions, self-defense tactics, helpline numbers, and incident prevention. Format your response with clear bullet points, bold headings, and helpful emojis.";
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${key}`;
       
-      const res = await axios.post(url, {
-        contents: [
-          { parts: [{ text: `${systemPrompt}\n\nUser Question: ${queryText}` }] }
-        ]
-      }, { timeout: 6000 });
-
-      const replyText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (replyText) {
-        return {
-          success: true,
-          data: {
-            id: `ai-${Date.now()}`,
-            sender: "AI_SAFETY_ASSISTANT",
-            message: replyText,
-            response: replyText,
-            createdAt: new Date().toISOString()
-          }
-        };
-      }
-    } catch {
-      // Key expired/invalid, continue to dynamic AI generator
-    }
-  }
-
-  // 4. Try Hugging Face Router API if valid HF key is present
-  if (GEMINI_API_KEY && (GEMINI_API_KEY.startsWith("hf_") || GEMINI_API_KEY.startsWith("AQ."))) {
-    try {
-      const hfRes = await axios.post(
-        "https://router.huggingface.co/hf-inference/v1/chat/completions",
-        {
-          model: "mistralai/Mistral-7B-Instruct-v0.3",
-          messages: [
-            {
-              role: "system",
-              content: "You are Velora AI, an intelligent 24/7 Women's Safety Assistant."
-            },
-            { role: "user", content: queryText }
-          ],
-          max_tokens: 350
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${GEMINI_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          timeout: 7000
-        }
+      const res = await axios.post(
+        url,
+        { contents: [{ parts: [{ text: `${systemPrompt}\n\nUser Question: ${queryText}` }] }] },
+        { timeout: 20000 }
       );
 
-      const replyText = hfRes.data?.choices?.[0]?.message?.content;
-      if (replyText) {
+      const replyText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (replyText && replyText.trim()) {
         return {
           success: true,
           data: {
-            id: `ai-${Date.now()}`,
+            id: `gemini-${Date.now()}`,
             sender: "AI_SAFETY_ASSISTANT",
             message: replyText,
             response: replyText,
@@ -102,11 +50,11 @@ export const sendChatMessage = async (message) => {
         };
       }
     } catch {
-      // Continue to dynamic safety generator
+      // Fall through
     }
   }
 
-  // 5. Intelligent Dynamic Safety & AI Response Engine
+  // 3. Fallback to Local Velora Safety Intelligence Engine
   const reply = generateAiSafetyAnswer(queryText);
   return {
     success: true,
@@ -285,14 +233,31 @@ Regarding "${cleanTitle}":
 4. **Navigation**: Use Velora's Safe Route map for verified well-lit paths and verified safe zone check-ins.`;
 }
 
-export const predictRisk = (latitude, longitude) =>
-  client.post("/ai/risk-prediction", typeof latitude === "object" ? latitude : { latitude, longitude }).then((r) => r.data).catch(() => ({
+export const predictRisk = async (latitude, longitude) => {
+  const payload = typeof latitude === "object" ? latitude : { latitude, longitude };
+  const ML_URL = import.meta.env.VITE_ML_SERVICE_URL || "http://localhost:8000";
+  try {
+    const mlRes = await axios.post(`${ML_URL}/api/v1/ai/risk-prediction`, payload);
+    if (mlRes?.data?.success) return mlRes.data;
+  } catch (err) {
+    // Ignored, proceed to fallback
+  }
+  return {
     success: true,
     data: { riskScore: 35, riskLevel: "LOW", riskLabel: "Safe Zone" }
-  }));
+  };
+};
 
-export const getSafetyAnalysis = (lat, lng) =>
-  client.post("/ai/risk-prediction", { latitude: lat, longitude: lng }).then((r) => r.data).catch(() => ({
+export const getSafetyAnalysis = async (lat, lng) => {
+  const payload = { latitude: lat, longitude: lng };
+  const ML_URL = import.meta.env.VITE_ML_SERVICE_URL || "http://localhost:8000";
+  try {
+    const mlRes = await axios.post(`${ML_URL}/api/v1/ai/risk-prediction`, payload);
+    if (mlRes?.data?.success) return mlRes.data;
+  } catch (err) {
+    // Ignored, proceed to fallback
+  }
+  return {
     success: true,
     data: {
       overallScore: 88,
@@ -306,7 +271,33 @@ export const getSafetyAnalysis = (lat, lng) =>
       ],
       busyHoursNote: "⚡ Area stays active until 11:00 PM with active police patrol presence."
     }
-  }));
+  };
+};
 
-export const getChatHistory = () =>
-  client.get("/ai/chat/history").catch(() => ({ data: [] }));
+export const saveLocalChatHistory = (messages) => {
+  try {
+    if (Array.isArray(messages)) {
+      localStorage.setItem("velora_ai_chat_history", JSON.stringify(messages));
+    }
+  } catch {}
+};
+
+export const clearLocalChatHistory = () => {
+  try {
+    localStorage.removeItem("velora_ai_chat_history");
+  } catch {}
+};
+
+export const getChatHistory = async () => {
+  try {
+    const saved = localStorage.getItem("velora_ai_chat_history");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return { data: parsed };
+      }
+    }
+  } catch {}
+
+  return { data: [] };
+};

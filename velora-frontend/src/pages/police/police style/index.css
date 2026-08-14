@@ -5,7 +5,7 @@
   --primary-hover: #2563eb;
   --primary-glow: rgba(59, 130, 246, 0.15);
   
-  --bg-main: #0b0f19;
+  --bg-main: #0b0f17;
   --bg-card: #131c31;
   --bg-card-hover: #1b2742;
   --bg-nav: #131c31;
@@ -75,7 +75,7 @@ body {
 /* Authentication pages: Container background gradient overrides */
 .container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #090d16 0%, #17223b 100%);
+  background: #0b0f17;
   padding: 40px 20px;
   display: flex;
   flex-direction: column;
@@ -269,7 +269,7 @@ body {
 
 /* Login Page specific elements */
 .login-container {
-  background: linear-gradient(135deg, #090d16 0%, #17223b 100%);
+  background: #0b0f17;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -427,7 +427,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #090d16 0%, #17223b 100%);
+  background: #0b0f17;
   padding: 40px 20px;
 }
 
@@ -494,7 +494,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #090d16 0%, #17223b 100%);
+  background: #0b0f17;
   padding: 40px 20px;
 }
 

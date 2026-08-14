@@ -58,24 +58,24 @@ export function getRegionKey(lat, lng, gridSize = GRID_SIZE_DEG) {
 // ---- Zone classification ----------------------------------------------
 
 export const ZONE_BANDS = [
-  { level: "red", max: 44, label: "High Risk Zone (0-44)", color: "#FF5252", fill: "#FF525233", recommendation: "High risk detected. Share live tracking with emergency contacts." },
-  { level: "yellow", max: 74, label: "Moderate Risk Zone (45-74)", color: "#FFC107", fill: "#FFC10733", recommendation: "Exercise heightened awareness. Stay on well-lit main roads." },
-  { level: "green", max: 100, label: "Safe Zone (75-100)", color: "#00E676", fill: "#00E67633", recommendation: "Location conditions are optimal for travel." },
+  { level: "red", max: 39, label: "High Risk Zone (0-40)", color: "#FF5252", fill: "#FF525233", recommendation: "High risk detected. Share live tracking with emergency contacts." },
+  { level: "yellow", max: 74, label: "Moderate Risk Zone (40-75)", color: "#FFC107", fill: "#FFC10733", recommendation: "Exercise heightened awareness. Stay on well-lit main roads." },
+  { level: "green", max: 100, label: "Safe Zone (75-95)", color: "#00E676", fill: "#00E67633", recommendation: "Location conditions are optimal for travel." },
 ];
 
 export function classifyScore(score) {
   if (score >= 75) {
     return {
       level: "green",
-      label: "Safe Zone (75-100)",
+      label: "Safe Zone (75-95)",
       color: "#00E676",
       fill: "#00E67633",
       recommendation: "Location conditions are optimal for travel."
     };
-  } else if (score >= 45) {
+  } else if (score >= 40) {
     return {
       level: "yellow",
-      label: "Moderate Risk Zone (45-74)",
+      label: "Moderate Risk Zone (40-75)",
       color: "#FFC107",
       fill: "#FFC10733",
       recommendation: "Exercise heightened awareness. Stay on well-lit main roads."
@@ -83,7 +83,7 @@ export function classifyScore(score) {
   } else {
     return {
       level: "red",
-      label: "High Risk Zone (0-44)",
+      label: "High Risk Zone (0-40)",
       color: "#FF5252",
       fill: "#FF525233",
       recommendation: "High risk detected. Share live tracking with emergency contacts."
@@ -161,12 +161,12 @@ export function scoreForLocation(lat, lng, hotspots = []) {
 
 /**
  * Computes dynamic safety score across a route polyline path:
- * - If route does NOT cross any risk zone: Score stays in SAFE RANGE (90 - 100, Green 🟢).
- * - If route crosses a Yellow (Moderate Risk) zone circle: Score drops into MODERATE RANGE (70 - 89, Yellow 🟡).
- * - If route crosses a Red (High Risk / Unsafe) zone circle: Score drops into HIGH RISK RANGE (0 - 69, Red 🔴).
+ * - Green Zone: 75 - 95 points
+ * - Yellow Zone: 40 - 75 points
+ * - Red Zone: 0 - 40 points
  */
 export function scoreForRoute(origin, destination, hotspots = [], routePath = []) {
-  if (!origin) return { score: 95, ...classifyScore(95) };
+  if (!origin) return null;
 
   let score;
   let crossedRed = false;
@@ -213,26 +213,28 @@ export function scoreForRoute(origin, destination, hotspots = [], routePath = []
     });
   }
 
-  // Dynamic score computation based on actual zone crossing:
+  // Dynamic score computation obeying user specifications:
   if (crossedRed) {
-    // Route crosses Red High Risk Zone -> Score drops to Red Range (0 - 44, e.g. 35)
-    score = Math.max(10, 38 - (redCrossCount - 1) * 8);
+    // Route enters Red (Unsafe / High Risk) Zone -> Score evaluated in 0 - 40 points
+    score = Math.max(5, Math.min(38, 38 - (redCrossCount - 1) * 8));
   } else if (crossedYellow) {
-    // Route crosses Yellow Moderate Risk Zone -> Score drops to Yellow Range (45 - 74, e.g. 62)
-    score = Math.max(45, 68 - (yellowCrossCount - 1) * 5);
+    // Route enters Yellow (Moderate Risk) Zone -> Score evaluated in 40 - 75 points
+    score = Math.max(42, Math.min(74, 68 - (yellowCrossCount - 1) * 5));
   } else {
-    // Route does NOT cross any risk zone -> Score stays in Safe Green Range (75 - 100, e.g. 92)
-    score = 92;
+    // Route travels through Green (Safe) Area -> Score evaluated in 75 - 95 points
+    score = 88;
   }
 
-  // Deduct 5 points if travelling late at night (10 PM - 5 AM)
+  // Deduct points if travelling late at night (10 PM - 5 AM)
   const hour = new Date().getHours();
   const isNight = hour >= 22 || hour < 5;
   if (isNight) {
-    score = Math.max(15, score - 5);
+    if (crossedRed) score = Math.max(5, score - 5);
+    else if (crossedYellow) score = Math.max(40, score - 5);
+    else score = Math.max(75, score - 5);
   }
 
-  const finalScore = Math.max(10, Math.min(100, Math.round(score)));
+  const finalScore = Math.max(0, Math.min(95, Math.round(score)));
   const zone = classifyScore(finalScore);
 
   return {
@@ -287,26 +289,49 @@ export function generatePredictiveMLZones(centerLat, centerLng, mlFeatures = [])
  */
 export function formatMLMarkedZonesForMap(markedZones = []) {
   if (!Array.isArray(markedZones)) return [];
-  return markedZones.map((z, idx) => {
-    const lat = parseFloat(z.latitude || z.lat || 0);
-    const lng = parseFloat(z.longitude || z.lng || 0);
+  const seen = new Set();
+  const unique = [];
+
+  for (const z of markedZones) {
+    if (!z) continue;
+    const latNum = parseFloat(z.latitude ?? z.lat ?? 0);
+    const lngNum = parseFloat(z.longitude ?? z.lng ?? 0);
+    if (!latNum || !lngNum) continue;
+
+    const lat = latNum.toFixed(5);
+    const lng = lngNum.toFixed(5);
+    const idKey = z.id ? `id:${z.id}` : null;
+    const coordKey = `coord:${lat},${lng}`;
+
+    if ((idKey && seen.has(idKey)) || seen.has(coordKey)) {
+      continue;
+    }
+
+    if (idKey) seen.add(idKey);
+    seen.add(coordKey);
+    unique.push(z);
+  }
+
+  return unique.map((z, idx) => {
+    const lat = parseFloat(z.latitude ?? z.lat ?? 0);
+    const lng = parseFloat(z.longitude ?? z.lng ?? 0);
     const category = (z.zone || z.level || "safe").toLowerCase();
     
     let color = z.color || "#00E676";
-    let score = z.score || z.safetyScore || 90;
-    let label = z.label || z.name || "Safe Zone";
+    let score = z.score ?? z.safetyScore ?? 90;
+    let label = z.name || z.label || z.description || "Safe Zone";
     let level = z.level || "SAFE";
 
     if (category.includes("unsafe") || category.includes("red") || category.includes("high")) {
-      color = "#FF5252";
-      score = z.score || 28;
+      color = z.color || "#FF5252";
+      score = z.score ?? z.safetyScore ?? 28;
       level = "HIGH_RISK";
-      label = z.label || "High Risk Zone";
+      label = z.name || z.label || "High Risk Zone";
     } else if (category.includes("moderate") || category.includes("yellow") || category.includes("medium")) {
-      color = "#FFC107";
-      score = z.score || 62;
+      color = z.color || "#FFC107";
+      score = z.score ?? z.safetyScore ?? 62;
       level = "MODERATE_RISK";
-      label = z.label || "Moderate Risk Zone";
+      label = z.name || z.label || "Moderate Risk Zone";
     }
 
     return {

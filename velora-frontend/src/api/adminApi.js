@@ -2,46 +2,37 @@ import axios from "axios";
 import client from "./client";
 
 export const getAdminDashboardStats = async () => {
-  const users = getStoredRegisteredUsers();
-  const totalUsers = users.length || 11;
-  const activePolice = users.filter((u) => u.role === "ROLE_POLICE" || u.role === "POLICE").length || 4;
-
   try {
     const res = await client.get("/admin/dashboard/stats");
-    if (res?.data) {
-      return {
-        data: {
-          totalUsers: res.data.totalUsers ?? totalUsers,
-          activePoliceOfficers: res.data.activePoliceOfficers ?? activePolice,
-          safeZones: res.data.safeZones ?? 42,
-          totalIncidents: res.data.totalIncidents ?? 12,
-          pendingIncidents: res.data.pendingIncidents ?? 6,
-          underInvestigation: res.data.underInvestigation ?? 4,
-          resolvedIncidents: res.data.resolvedIncidents ?? 2,
-          systemHealth: "HEALTHY"
-        }
-      };
+    const payload = res?.data?.data || res?.data;
+    if (payload && (payload.totalUsers !== undefined || payload.totalIncidents !== undefined)) {
+      return { data: payload };
     }
   } catch {
     try {
       const direct = await axios.get("http://localhost:8087/api/v1/admin/dashboard/stats");
-      if (direct?.data?.data) {
-        return direct.data;
+      const payload = direct?.data?.data || direct?.data;
+      if (payload && (payload.totalUsers !== undefined || payload.totalIncidents !== undefined)) {
+        return { data: payload };
       }
     } catch {
       /* ignore fallback error */
     }
   }
 
+  const users = getStoredRegisteredUsers();
+  const totalUsers = users.length;
+  const activePolice = users.filter((u) => u.role === "ROLE_POLICE" || u.role === "POLICE").length;
+
   return {
     data: {
       totalUsers,
       activePoliceOfficers: activePolice,
-      safeZones: 42,
-      totalIncidents: 12,
-      pendingIncidents: 6,
-      underInvestigation: 4,
-      resolvedIncidents: 2,
+      safeZones: 0,
+      totalIncidents: 0,
+      pendingIncidents: 0,
+      underInvestigation: 0,
+      resolvedIncidents: 0,
       systemHealth: "HEALTHY"
     }
   };
@@ -50,15 +41,32 @@ export const getAdminDashboardStats = async () => {
 
 
 export const getSystemHealth = async () => {
+  try {
+    const res = await client.get("/admin/system/health");
+    if (res?.data?.data) {
+      return { data: res.data.data };
+    }
+  } catch {
+    try {
+      const direct = await axios.get("http://localhost:8087/api/v1/admin/system/health");
+      if (direct?.data?.data) {
+        return { data: direct.data.data };
+      }
+    } catch {
+      /* ignore direct call error */
+    }
+  }
+
   return {
     data: {
-      authService: "UP",
-      userService: "UP",
-      safetyService: "UP",
-      aiService: "UP",
-      notificationService: "UP",
-      policeService: "UP",
-      gateway: "UP"
+      gateway: { status: "DOWN", latency: "Offline / Unreachable" },
+      authService: { status: "DOWN", latency: "Offline / Unreachable" },
+      userService: { status: "DOWN", latency: "Offline / Unreachable" },
+      safetyService: { status: "DOWN", latency: "Offline / Unreachable" },
+      aiService: { status: "DOWN", latency: "Offline / Unreachable" },
+      notificationService: { status: "DOWN", latency: "Offline / Unreachable" },
+      policeService: { status: "DOWN", latency: "Offline / Unreachable" },
+      adminService: { status: "DOWN", latency: "Offline / Unreachable" }
     }
   };
 };
@@ -216,6 +224,29 @@ export const getAdminMLZones = () =>
   client.get("/admin/ml-zones").then((r) => r.data).catch(() => ({ data: [] }));
 
 export const addAdminMLZone = async (payload) => {
+  // Always record locally so live UI maps update immediately across components
+  try {
+    const existing = JSON.parse(localStorage.getItem("velora_admin_ml_zones") || "[]");
+    const newZone = {
+      id: `ml_zone_admin_${Date.now()}`,
+      name: payload.name || payload.description || "Marked Safe Zone",
+      description: payload.description || payload.name || "Admin Verified Zone",
+      latitude: parseFloat(payload.latitude),
+      longitude: parseFloat(payload.longitude),
+      zone: payload.zone || "safe",
+      level: payload.level || "SAFE",
+      color: payload.color || (payload.zone === "unsafe" ? "#FF5252" : payload.zone === "moderate" ? "#FFC107" : "#00E676"),
+      fill: payload.color ? payload.color + "33" : "#00E67633",
+      radiusMeters: payload.radiusMeters || 400,
+      safetyScore: payload.safetyScore || 92,
+      createdAt: new Date().toISOString()
+    };
+    localStorage.setItem("velora_admin_ml_zones", JSON.stringify([newZone, ...existing]));
+    window.dispatchEvent(new Event("velora_zone_updated"));
+  } catch (e) {
+    console.warn("Failed to update local velora_admin_ml_zones", e);
+  }
+
   try {
     const res = await client.post("/admin/ml-zones", payload);
     return res.data;
@@ -237,6 +268,109 @@ export const addAdminMLZone = async (payload) => {
 export const getAdminAnalytics = () =>
   client.get("/admin/analytics").then((r) => r.data).catch(() => ({ data: {} }));
 
-export const getAuditLogs = () =>
-  client.get("/admin/audit-logs").then((r) => r.data).catch(() => ({ data: [] }));
+/* =========================================================
+   Police Escalated Cases Persistence Layer
+   ========================================================= */
+const ESCALATED_CASES_KEY = "velora_admin_police_cases";
+
+export const getEscalatedPoliceCases = () => {
+  try {
+    const raw = localStorage.getItem(ESCALATED_CASES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    /* ignore local storage error */
+  }
+  return [];
+};
+
+export const escalateCaseToAdmin = async (incidentCase) => {
+  const cases = getEscalatedPoliceCases();
+  const cId = incidentCase.complaintId || incidentCase.id || Date.now();
+  
+  const loc = typeof incidentCase.location === "object" 
+    ? incidentCase.location?.address 
+    : (incidentCase.location || incidentCase.address || "Location recorded");
+
+  let detailedLocation = loc;
+  const lat = incidentCase.latitude || incidentCase.lat;
+  const lng = incidentCase.longitude || incidentCase.lng;
+
+  if (lat && lng && !detailedLocation.includes("Lat:")) {
+    detailedLocation = `${detailedLocation} (Lat: ${Number(lat).toFixed(4)}, Lng: ${Number(lng).toFixed(4)})`;
+  } else if (!detailedLocation.includes("Lat:")) {
+    const pseudoLat = (10.85 + (Number(cId) % 100) * 0.001).toFixed(4);
+    const pseudoLng = (76.95 + (Number(cId) % 100) * 0.001).toFixed(4);
+    detailedLocation = `${detailedLocation} (Lat: ${pseudoLat}, Lng: ${pseudoLng})`;
+  }
+
+  const existingIndex = cases.findIndex(c => String(c.complaintId || c.id) === String(cId));
+  
+  const escalatedRecord = {
+    ...incidentCase,
+    id: cId,
+    complaintId: cId,
+    location: detailedLocation,
+    escalatedAt: new Date().toISOString(),
+    adminStatus: "PENDING_ADMIN_REVIEW",
+    escalatedByOfficer: incidentCase.assignedOfficerName || "Police Officer"
+  };
+
+  let updated;
+  if (existingIndex >= 0) {
+    updated = [...cases];
+    updated[existingIndex] = { ...updated[existingIndex], ...escalatedRecord };
+  } else {
+    updated = [escalatedRecord, ...cases];
+  }
+
+  try {
+    localStorage.setItem(ESCALATED_CASES_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.warn("Storage warning:", e);
+  }
+  
+  try {
+    await client.post("/admin/police-cases/escalate", escalatedRecord);
+  } catch {
+    /* silent fallback to local storage */
+  }
+
+  return { success: true, data: escalatedRecord };
+};
+
+export const updateEscalatedCaseStatus = async (id, adminStatus) => {
+  const cases = getEscalatedPoliceCases();
+  const updated = cases.map(c => {
+    if (String(c.id || c.complaintId) === String(id)) {
+      return { ...c, adminStatus };
+    }
+    return c;
+  });
+  try {
+    localStorage.setItem(ESCALATED_CASES_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.warn("Storage error:", e);
+  }
+  return { success: true, adminStatus };
+};
+
+export const deleteEscalatedCase = async (id) => {
+  const cases = getEscalatedPoliceCases();
+  const updated = cases.map(c => {
+    if (String(c.id || c.complaintId) === String(id)) {
+      return { ...c, dismissedFromAdmin: true, adminStatus: "DISMISSED" };
+    }
+    return c;
+  });
+  try {
+    localStorage.setItem(ESCALATED_CASES_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.warn("Storage error:", e);
+  }
+  return { success: true };
+};
+
 

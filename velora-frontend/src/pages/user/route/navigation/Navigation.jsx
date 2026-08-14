@@ -269,10 +269,11 @@ function Navigation() {
     const [realtimeMLZones, setRealtimeMLZones] = useState([]);
 
     useEffect(() => {
+        let isMounted = true;
         const fetchML = async () => {
             try {
                 const ml = await fetchRealtimeMLMarkedZones(currentPosition?.lat, currentPosition?.lng);
-                if (Array.isArray(ml)) {
+                if (isMounted && Array.isArray(ml)) {
                     setRealtimeMLZones(ml);
                 }
             } catch (err) {
@@ -280,9 +281,16 @@ function Navigation() {
             }
         };
         fetchML();
-        const interval = setInterval(fetchML, 1000); // 1-second live sync
-        return () => clearInterval(interval);
-    }, [currentPosition]);
+
+        window.addEventListener("velora_zone_updated", fetchML);
+        window.addEventListener("storage", fetchML);
+
+        return () => {
+            isMounted = false;
+            window.removeEventListener("velora_zone_updated", fetchML);
+            window.removeEventListener("storage", fetchML);
+        };
+    }, []);
 
     const hotspots = useMemo(() => {
         return formatMLMarkedZonesForMap(realtimeMLZones);

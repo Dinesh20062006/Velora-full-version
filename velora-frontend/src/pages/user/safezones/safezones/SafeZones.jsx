@@ -91,21 +91,29 @@ function SafeZones() {
     }, []);
 
     useEffect(() => {
+        let isMounted = true;
         const fetchML = async () => {
             try {
                 const ml = await fetchRealtimeMLMarkedZones();
-                if (Array.isArray(ml)) {
+                if (isMounted && Array.isArray(ml)) {
                     setRealtimeMLZones(ml);
                 }
             } catch (err) {
                 console.warn("ML zones fetch notice:", err);
             } finally {
-                setLoading(false);
+                if (isMounted) setLoading(false);
             }
         };
         fetchML();
-        const mlInterval = setInterval(fetchML, 1000); // 1-second live sync
-        return () => clearInterval(mlInterval);
+
+        window.addEventListener("velora_zone_updated", fetchML);
+        window.addEventListener("storage", fetchML);
+
+        return () => {
+            isMounted = false;
+            window.removeEventListener("velora_zone_updated", fetchML);
+            window.removeEventListener("storage", fetchML);
+        };
     }, []);
 
     /* Display active ML marked zones on the map within 10 km radius of user */
@@ -142,12 +150,20 @@ function SafeZones() {
 
         const allMapped = realtimeMLZones
             .map((z, idx) => {
-                const lat = parseFloat(z.latitude || z.lat || 28.6139);
-                const lng = parseFloat(z.longitude || z.lng || 77.2090);
-                const cat = (z.zone || z.level || "safe").toLowerCase();
-                const score = z.safetyScore || z.score || 95;
-                const isGreen = cat.includes("safe") || cat.includes("green") || score >= 90;
+                const lat = parseFloat(z.latitude || z.lat || 10.8795);
+                const lng = parseFloat(z.longitude || z.lng || 77.0223);
+                const cat = String(z.zone || z.level || "safe").toLowerCase();
+                const score = Number(z.safetyScore ?? z.score ?? 95);
 
+                const isUnsafeOrModerate =
+                    cat.includes("unsafe") ||
+                    cat.includes("moderate") ||
+                    cat.includes("red") ||
+                    cat.includes("yellow") ||
+                    cat.includes("high") ||
+                    score < 75;
+
+                const isGreen = !isUnsafeOrModerate;
                 const dist = currentPosition ? haversineKm(currentPosition.lat, currentPosition.lng, lat, lng) : 0;
 
                 return {

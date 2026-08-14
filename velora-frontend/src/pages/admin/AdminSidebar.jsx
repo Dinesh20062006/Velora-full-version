@@ -5,8 +5,8 @@ import {
   IoPeopleOutline,
   IoShieldCheckmarkOutline,
   IoPulseOutline,
-  IoDocumentTextOutline,
   IoLogOutOutline,
+  IoDocumentTextOutline
 } from "react-icons/io5";
 
 function AdminSidebar({ collapse }) {
@@ -48,13 +48,6 @@ function AdminSidebar({ collapse }) {
           className={`menu ${location.pathname === "/admin/health" ? "active" : ""}`}
         >
           <IoPulseOutline /> {!collapse && "System Health"}
-        </Link>
-
-        <Link
-          to="/admin/audit-logs"
-          className={`menu ${location.pathname === "/admin/audit-logs" ? "active" : ""}`}
-        >
-          <IoDocumentTextOutline /> {!collapse && "Audit Logs"}
         </Link>
 
         <div style={{ marginTop: "120px" }}>

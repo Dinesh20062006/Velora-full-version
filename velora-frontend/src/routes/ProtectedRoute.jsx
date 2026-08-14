@@ -12,12 +12,6 @@ function ProtectedRoute({ children, allowedRoles = [], requirePolice = false }) 
   const { isAuthenticated, role } = useAuth();
 
   if (!isAuthenticated) {
-    if (requirePolice || allowedRoles.includes("POLICE") || allowedRoles.includes("ROLE_POLICE")) {
-      return <Navigate to="/police/login" replace />;
-    }
-    if (allowedRoles.includes("ADMIN") || allowedRoles.includes("ROLE_ADMIN")) {
-      return <Navigate to="/admin/login" replace />;
-    }
     return <Navigate to="/login" replace />;
   }
 

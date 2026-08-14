@@ -1,9 +1,8 @@
-
 import { useEffect, useState } from "react";
 import UserLayout from "../../../../layouts/UserLayout";
 import { useNavigate } from "react-router-dom";
-import { FaUserCircle, FaPhoneAlt, FaPlus, FaTrash } from "react-icons/fa";
-import { getEmergencyContacts, deleteEmergencyContact } from "../../../../api/emergencyContactApi";
+import { FaUserCircle, FaPhoneAlt, FaPlus, FaTrash, FaEdit, FaSave } from "react-icons/fa";
+import { getEmergencyContacts, deleteEmergencyContact, updateEmergencyContact } from "../../../../api/emergencyContactApi";
 
 function EmergencyContacts() {
     const navigate = useNavigate();
@@ -11,6 +10,17 @@ function EmergencyContacts() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [deletingId, setDeletingId] = useState(null);
+
+    // Edit state
+    const [editingContact, setEditingContact] = useState(null);
+    const [editForm, setEditForm] = useState({
+        name: "",
+        phone: "",
+        relation: "",
+        primary: false
+    });
+    const [savingEdit, setSavingEdit] = useState(false);
+    const [editError, setEditError] = useState("");
 
     useEffect(() => {
         let cancelled = false;
@@ -59,6 +69,69 @@ function EmergencyContacts() {
         }
     };
 
+    const handleOpenEdit = (contact) => {
+        setEditingContact(contact);
+        setEditForm({
+            name: contact.name || "",
+            phone: contact.phone || "",
+            relation: contact.relation || "Emergency Contact",
+            primary: Boolean(contact.primary)
+        });
+        setEditError("");
+    };
+
+    const handleCloseEdit = () => {
+        setEditingContact(null);
+        setEditError("");
+    };
+
+    const handleSaveEdit = async (e) => {
+        e?.preventDefault();
+        if (!editForm.name.trim() || !editForm.phone.trim()) {
+            setEditError("Name and mobile number are required.");
+            return;
+        }
+
+        setSavingEdit(true);
+        setEditError("");
+
+        try {
+            const updatedPayload = {
+                name: editForm.name.trim(),
+                phone: editForm.phone.trim(),
+                phoneNumber: editForm.phone.trim(),
+                relation: editForm.relation.trim(),
+                relationship: editForm.relation.trim(),
+                primary: editForm.primary,
+                isPrimary: editForm.primary
+            };
+
+            await updateEmergencyContact(editingContact.id, updatedPayload);
+
+            setContacts((prev) =>
+                prev.map((c) =>
+                    c.id === editingContact.id
+                        ? {
+                              ...c,
+                              name: updatedPayload.name,
+                              phone: updatedPayload.phone,
+                              relation: updatedPayload.relation,
+                              primary: updatedPayload.primary
+                          }
+                        : c
+                )
+            );
+            setEditingContact(null);
+        } catch (err) {
+            setEditError(
+                err?.response?.data?.message ||
+                "Could not update emergency contact. Please try again."
+            );
+        } finally {
+            setSavingEdit(false);
+        }
+    };
+
     return (
         <UserLayout>
             <div className="contacts">
@@ -68,7 +141,7 @@ function EmergencyContacts() {
                         <FaPlus />
                         Add Contact
                     </button>
-               </div>
+                </div>
 
                 {error && (
                     <p style={{ color: "#ff4d4f", marginBottom: "10px" }}>{error}</p>
@@ -96,21 +169,89 @@ function EmergencyContacts() {
                                     {contact.primary ? "Primary Contact" : (contact.relation || "Emergency Contact")}
                                 </span>
                             </div>
-                            <div className="contact-actions">
-                                <a href={`tel:${contact.phone}`}>
+                            <div className="contact-actions" style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+                                <a href={`tel:${contact.phone}`} title="Call Contact">
                                     <FaPhoneAlt className="call-icon" />
                                 </a>
+                                <FaEdit
+                                    className="edit-icon"
+                                    onClick={() => handleOpenEdit(contact)}
+                                    title="Edit Contact"
+                                    style={{ color: "#6C63FF", cursor: "pointer", fontSize: "20px" }}
+                                />
                                 <FaTrash
                                     className="delete-icon"
                                     onClick={() => !deletingId && handleDelete(contact.id)}
-                                    style={{ opacity: deletingId === contact.id ? 0.5 : 1, cursor: "pointer" }}
+                                    title="Delete Contact"
+                                    style={{ opacity: deletingId === contact.id ? 0.5 : 1, cursor: "pointer", fontSize: "20px" }}
                                 />
-                           </div>
+                            </div>
                         </div>
                     ))
+                )}
+
+                {/* Edit Contact Modal */}
+                {editingContact && (
+                    <div className="edit-modal-overlay">
+                        <div className="edit-modal-content">
+                            <div className="edit-modal-header">
+                                <h2>Edit Emergency Contact</h2>
+                            </div>
+
+                            {editError && (
+                                <p style={{ color: "#ff4d4f", marginBottom: "12px", fontSize: "14px" }}>
+                                    {editError}
+                                </p>
+                            )}
+
+                            <form onSubmit={handleSaveEdit} className="edit-modal-form">
+                                <div className="form-group">
+                                    <label>Contact Name</label>
+                                    <input
+                                        type="text"
+                                        value={editForm.name}
+                                        onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                                        placeholder="Full Name"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Mobile Number</label>
+                                    <input
+                                        type="text"
+                                        value={editForm.phone}
+                                        onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                                        placeholder="Phone / Mobile Number"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Relationship</label>
+                                    <input
+                                        type="text"
+                                        value={editForm.relation}
+                                        onChange={(e) => setEditForm({ ...editForm, relation: e.target.value })}
+                                        placeholder="e.g. Parent, Spouse, Friend"
+                                    />
+                                </div>
+
+                                <div className="edit-modal-actions">
+                                    <button type="button" className="btn-cancel" onClick={handleCloseEdit}>
+                                        Cancel
+                                    </button>
+                                    <button type="submit" className="btn-save" disabled={savingEdit}>
+                                        <FaSave /> {savingEdit ? "Saving..." : "Save Changes"}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                 )}
             </div>
         </UserLayout>
     );
 }
+
 export default EmergencyContacts;

@@ -56,23 +56,28 @@ function Signup() {
   return (
     <div className="signup">
       <div className="signup-container">
-        <img src={signupImage} alt="Signup" className="signup-image" />
-        <h1>Create Account</h1>
-        <p>Join Velora and stay safe everywhere</p>
+        <div className="signup-left">
+          <img src={signupImage} alt="Signup" className="signup-image" />
+        </div>
 
-        {error && <p className="error-text" style={{ color: "red", margin: "8px 0" }}>{error}</p>}
+        <div className="signup-right">
+          <h1>Create Account</h1>
+          <p>Join Velora and stay safe everywhere</p>
 
-        <Input type="text" placeholder="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-        <Input type="email" placeholder="Email Address (Optional)" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <Input type="tel" placeholder="Mobile / Phone Number" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        <Input type="password" placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+          {error && <p className="error-text" style={{ color: "red", margin: "8px 0" }}>{error}</p>}
 
-        <Button text={loading ? "Creating account..." : "Sign Up"} onClick={handleSignup} disabled={loading} />
+          <Input type="text" placeholder="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          <Input type="email" placeholder="Email Address (Optional)" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Input type="tel" placeholder="Mobile / Phone Number" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <Input type="password" placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
 
-        <div className="login-link">
-          Already have an account?
-          <Link to="/login">Login</Link>
+          <Button text={loading ? "Creating account..." : "Sign Up"} onClick={handleSignup} disabled={loading} />
+
+          <div className="login-link">
+            Already have an account?
+            <Link to="/login">Login</Link>
+          </div>
         </div>
       </div>
     </div>

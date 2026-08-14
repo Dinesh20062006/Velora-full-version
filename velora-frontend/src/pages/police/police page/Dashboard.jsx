@@ -17,9 +17,7 @@ import {
 import {
   IoAlertCircleOutline,
   IoFolderOpenOutline,
-  IoWarningOutline,
   IoPeopleOutline,
-  IoTimeOutline,
   IoCheckmarkCircleOutline
 } from "react-icons/io5";
 
@@ -94,7 +92,16 @@ function Dashboard() {
       if (incRes.status === "fulfilled") {
         const data = incRes.value?.data || incRes.value?.content || incRes.value;
         const incList = Array.isArray(data) ? data : (data?.content || []);
-        setIncidents(incList);
+        const sortedIncidents = [...incList].sort((a, b) => {
+          const idA = Number(a.complaintId || a.id || 0);
+          const idB = Number(b.complaintId || b.id || 0);
+          if (!isNaN(idA) && !isNaN(idB) && idA > 0 && idB > 0) return idB - idA;
+          const dateA = new Date(a.createdAt || a.createdDate || a.timestamp || 0).getTime();
+          const dateB = new Date(b.createdAt || b.createdDate || b.timestamp || 0).getTime();
+          if (dateA && dateB) return dateB - dateA;
+          return 0;
+        });
+        setIncidents(sortedIncidents);
 
         const unresolved = incList.filter((c) => (c.status || "").toUpperCase() !== "RESOLVED").length;
         const resolved = incList.filter((c) => (c.status || "").toUpperCase() === "RESOLVED").length;
@@ -139,9 +146,7 @@ function Dashboard() {
           <div className="cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", margin: "24px 0" }}>
             <Card title="Active SOS Emergencies" value={stats.activeSOSAlerts} icon={<IoAlertCircleOutline />} highlight={true} />
             <Card title="Unresolved Cases" value={stats.pendingIncidents} icon={<IoFolderOpenOutline />} />
-            <Card title="High Risk Hotspots" value={stats.highRiskAreas} icon={<IoWarningOutline />} />
             <Card title="Patrol Officers On Duty" value={stats.officersOnDuty} icon={<IoPeopleOutline />} />
-            <Card title="Avg Response Speed" value={stats.responseTime} icon={<IoTimeOutline />} />
             <Card title="Resolved Incidents Today" value={stats.resolvedToday} icon={<IoCheckmarkCircleOutline />} />
           </div>
 
@@ -286,38 +291,6 @@ function Dashboard() {
                   </table>
                 </div>
               )}
-            </div>
-
-            {/* AI Risk and Notifications */}
-            <div style={{ display: "flex", gap: "20px" }}>
-              <div className="box" style={{ flex: 1, background: "#1f2937", padding: "20px", borderRadius: "12px", border: "1px solid #374151" }}>
-                <h2 style={{ color: "#f3f4f6", fontSize: "18px", marginBottom: "16px" }}>AI Safety Risk Insights</h2>
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <div className="prediction" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111827", padding: "12px", borderRadius: "8px", borderLeft: "4px solid #ef4444" }}>
-                    <div>
-                      <strong style={{ color: "#f9fafb" }}>Railway Station Exit Corridor</strong>
-                      <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#9ca3af" }}>Action Plan: Increase active PCR Patrol units</p>
-                    </div>
-                    <span style={{ fontSize: "18px", fontWeight: "bold", color: "#ef4444" }}>85%</span>
-                  </div>
-                  <div className="prediction" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111827", padding: "12px", borderRadius: "8px", borderLeft: "4px solid #f59e0b" }}>
-                    <div>
-                      <strong style={{ color: "#f9fafb" }}>Bus Terminal Exit Exit 2</strong>
-                      <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#9ca3af" }}>Action Plan: Monitor CCTV feeds remotely</p>
-                    </div>
-                    <span style={{ fontSize: "18px", fontWeight: "bold", color: "#f59e0b" }}>60%</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="box" style={{ flex: 1, background: "#1f2937", padding: "20px", borderRadius: "12px", border: "1px solid #374151" }}>
-                <h2 style={{ color: "#f3f4f6", fontSize: "18px", marginBottom: "16px" }}>Real-time Operations Log</h2>
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px", color: "#d1d5db", fontSize: "14px" }}>
-                  <p style={{ margin: 0, paddingBottom: "6px", borderBottom: "1px solid #374151" }}>🚨 SOS Alert Broadcasted in Sector 4</p>
-                  <p style={{ margin: 0, paddingBottom: "6px", borderBottom: "1px solid #374151" }}>🤖 AI Risk Model Threshold Updated</p>
-                  <p style={{ margin: 0 }}>👮 Police PCR Unit #101 Assigned to SOS Ref 342</p>
-                </div>
-              </div>
             </div>
           </div>
         </div>

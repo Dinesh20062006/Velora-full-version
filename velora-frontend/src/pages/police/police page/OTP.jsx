@@ -81,7 +81,7 @@ function OTP() {
         }
         await resetPassword({ email: email || targetId, otp: code, newPassword });
         alert("Password reset successful. Please log in with your new password.");
-        navigate("/police/login");
+        navigate("/login");
       } else {
         await policeVerifyOtp({ mobileNumber: targetId, otp: code });
         navigate("/police/dashboard");

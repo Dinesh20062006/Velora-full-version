@@ -77,6 +77,9 @@ export const getActiveSosAlerts = () =>
 export const dispatchUnit = (alertId, payload) =>
   client.post(`/police/sos-alerts/${alertId}/dispatch`, payload).then((r) => r.data).catch(() => ({ success: true }));
 
+export const updateSosStatus = (alertId, status, officerId) =>
+  client.put(`/police/sos-alerts/${alertId}/status`, { status, officerId }).then((r) => r.data).catch(() => ({ success: true }));
+
 export const getAvailableOfficers = () =>
   client.get("/police/officers").then((r) => r.data).catch(() => ({ success: true, data: [] }));
 

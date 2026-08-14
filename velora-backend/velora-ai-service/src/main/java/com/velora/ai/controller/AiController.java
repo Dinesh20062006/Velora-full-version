@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/ai")
-@CrossOrigin(origins = "*", allowedHeaders = "*")
 @Tag(name = "AI Safety", description = "AI chat assistant, risk prediction, and route recommendation")
 public class AiController {
     private final AiService aiService;

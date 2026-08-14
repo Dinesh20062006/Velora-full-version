@@ -29,11 +29,15 @@ function Navbar() {
     };
 
     fetchUnread();
-    const interval = setInterval(fetchUnread, 10000);
+    const interval = setInterval(fetchUnread, 15000);
+    window.addEventListener("notifications_updated", fetchUnread);
+    window.addEventListener("storage", fetchUnread);
 
     return () => {
       isMounted = false;
       clearInterval(interval);
+      window.removeEventListener("notifications_updated", fetchUnread);
+      window.removeEventListener("storage", fetchUnread);
     };
   }, []);
 

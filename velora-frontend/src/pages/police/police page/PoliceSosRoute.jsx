@@ -9,6 +9,7 @@ import {
   useMapsLibrary
 } from "@vis.gl/react-google-maps";
 import UserLayout from "./UserLayout";
+import { dispatchUnit } from "../../../api/policeApi";
 import { IoCallOutline, IoNavigateOutline, IoArrowBackOutline, IoShieldCheckmarkOutline } from "react-icons/io5";
 
 // Helper function to compute Haversine distance in KM
@@ -49,37 +50,26 @@ function PoliceRouteRenderer({ origin, destination, onRouteFound }) {
       }
     };
 
-    // Draw Dotted Line Fallback when road routing is unavailable or restricted
-    const drawDottedFallbackPolyline = () => {
+    // Draw Solid Bold Blue Polyline connecting Police Location to Citizen SOS Destination
+    const drawRoutePolyline = () => {
       if (!window.google?.maps) return;
       clearOldRoute();
 
       const originCoords = { lat: parseFloat(origin.lat), lng: parseFloat(origin.lng) };
-      const destCoords = { lat: parseFloat(destination.lat), lng: parseFloat(destination.lng) };
-
-      // Dotted pattern symbol for Google Maps
-      const lineSymbol = {
-        path: "M 0,-1 0,1",
-        strokeOpacity: 1,
-        strokeColor: "#2563eb",
-        scale: 4
+      const destCoords = {
+        lat: parseFloat(destination.latitude ?? destination.lat ?? origin.lat),
+        lng: parseFloat(destination.longitude ?? destination.lng ?? origin.lng)
       };
 
-      const dottedPolyline = new window.google.maps.Polyline({
+      const boldPolyline = new window.google.maps.Polyline({
         path: [originCoords, destCoords],
         strokeColor: "#2563eb",
-        strokeOpacity: 0,
-        icons: [
-          {
-            icon: lineSymbol,
-            offset: "0",
-            repeat: "16px"
-          }
-        ],
+        strokeOpacity: 0.95,
+        strokeWeight: 7,
         map: map
       });
 
-      polylinesRef.current.push(dottedPolyline);
+      polylinesRef.current.push(boldPolyline);
 
       const rawDist = calculateHaversine(originCoords.lat, originCoords.lng, destCoords.lat, destCoords.lng);
       const displayMins = Math.max(2, Math.round((rawDist / 35) * 60));
@@ -95,7 +85,7 @@ function PoliceRouteRenderer({ origin, destination, onRouteFound }) {
         const bounds = new window.google.maps.LatLngBounds();
         bounds.extend(originCoords);
         bounds.extend(destCoords);
-        map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 });
+        map.fitBounds(bounds, { top: 70, right: 70, bottom: 70, left: 70 });
       } catch (err) {
         console.warn("Bounds notice:", err);
       }
@@ -103,8 +93,13 @@ function PoliceRouteRenderer({ origin, destination, onRouteFound }) {
 
     const calculateRoute = async () => {
       clearOldRoute();
+      drawRoutePolyline();
+
       const originCoords = { lat: parseFloat(origin.lat), lng: parseFloat(origin.lng) };
-      const destCoords = { lat: parseFloat(destination.lat), lng: parseFloat(destination.lng) };
+      const destCoords = {
+        lat: parseFloat(destination.latitude ?? destination.lat ?? origin.lat),
+        lng: parseFloat(destination.longitude ?? destination.lng ?? origin.lng)
+      };
 
       // 1. Try Google Maps Directions API to route through road networks
       if (window.google?.maps?.DirectionsService) {
@@ -137,13 +132,13 @@ function PoliceRouteRenderer({ origin, destination, onRouteFound }) {
                 });
               }
             } else {
-              // If road route is unavailable or API key denied, keep line dotted!
-              drawDottedFallbackPolyline();
+              drawRoutePolyline();
             }
           });
           return;
         } catch (dsErr) {
-          console.log("Road route notice, falling back to dotted line...", dsErr);
+          console.log("Road route notice, falling back to bold line...", dsErr);
+          drawRoutePolyline();
         }
       }
 
@@ -259,6 +254,19 @@ export default function PoliceSosRoute() {
     }
   }, []);
 
+  // Check if this SOS alert is already dispatched in local storage
+  useEffect(() => {
+    try {
+      const dispatchedList = JSON.parse(localStorage.getItem("velora_dispatched_sos") || "[]");
+      const isAlreadyDispatched = dispatchedList.some((d) => String(d.sosId) === String(sosAlert.id));
+      if (isAlreadyDispatched) {
+        setDispatched(true);
+      }
+    } catch (e) {
+      console.warn("Failed to check dispatch status", e);
+    }
+  }, [sosAlert.id]);
+
   // Compute Destination Coordinates
   const rawSosLat = parseFloat(sosAlert.latitude || 28.6315);
   const rawSosLng = parseFloat(sosAlert.longitude || 77.2167);
@@ -284,6 +292,65 @@ export default function PoliceSosRoute() {
     const originStr = `${policePos.lat},${policePos.lng}`;
     const destStr = `${rawSosLat},${rawSosLng}`;
     window.open(`https://www.google.com/maps/dir/?api=1&origin=${originStr}&destination=${destStr}&travelmode=driving`, "_blank");
+  };
+
+  const handleConfirmDispatch = async () => {
+    setDispatched(true);
+
+    let policeOfficerId = 101;
+    try {
+      const rawUser = localStorage.getItem("user");
+      if (rawUser) {
+        const u = JSON.parse(rawUser);
+        policeOfficerId = u.id || u.userId || 101;
+      }
+    } catch {
+      // fallback
+    }
+
+    // Call backend API to update assigned_police_id and status in sos_alerts database table!
+    try {
+      const cleanAlertId = String(sosAlert.id || 1).replace("sos_", "");
+      await dispatchUnit(cleanAlertId, { officerId: policeOfficerId });
+    } catch (err) {
+      console.warn("Backend dispatch update warning:", err);
+    }
+
+    const dispatchRecord = {
+      sosId: sosAlert.id,
+      victimName: sosAlert.victimName,
+      victimMobile: sosAlert.victimMobile,
+      address: sosAlert.address,
+      dispatchedAt: new Date().toLocaleString(),
+      policeOfficer: `Insp. Police Patrol Unit #${policeOfficerId}`,
+      status: "PATROL_DISPATCHED_EN_ROUTE",
+      estimatedEta: routeMetrics?.duration || "2 mins"
+    };
+
+    // 1. Store in localStorage velora_dispatched_sos
+    try {
+      const existing = JSON.parse(localStorage.getItem("velora_dispatched_sos") || "[]");
+      const filtered = existing.filter((d) => String(d.sosId) !== String(sosAlert.id));
+      localStorage.setItem("velora_dispatched_sos", JSON.stringify([dispatchRecord, ...filtered]));
+    } catch (e) {
+      console.warn("Failed to store dispatched SOS details", e);
+    }
+
+    // 2. Post user notification entry for Citizen Notification Page (/notification)
+    try {
+      const existingNotifs = JSON.parse(localStorage.getItem("velora_custom_notifications") || "[]");
+      const dispatchNotification = {
+        id: `dispatch_${sosAlert.id}_${Date.now()}`,
+        title: "🚓 POLICE PATROL DISPATCHED EN ROUTE",
+        message: `Police Patrol Unit (Officer #${policeOfficerId}) has confirmed dispatch and is en route to your location (${sosAlert.address || "Live GPS"}). Estimated Arrival: ${routeMetrics?.duration || "2 mins"}.`,
+        type: "DISPATCH",
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      localStorage.setItem("velora_custom_notifications", JSON.stringify([dispatchNotification, ...existingNotifs]));
+    } catch (e) {
+      console.warn("Failed to post dispatch notification", e);
+    }
   };
 
   return (
@@ -341,7 +408,7 @@ export default function PoliceSosRoute() {
             )}
 
             <button
-              onClick={() => setDispatched(true)}
+              onClick={handleConfirmDispatch}
               style={{
                 padding: "10px 16px",
                 borderRadius: "8px",

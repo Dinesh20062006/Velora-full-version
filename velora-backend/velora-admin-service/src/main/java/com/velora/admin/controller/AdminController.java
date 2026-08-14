@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import static java.util.Map.entry;
 
 @RestController
@@ -79,11 +80,41 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success("Admin dashboard stats retrieved from DB", stats));
     }
 
+    private Map<String, Object> checkService(String name, String url) {
+        long start = System.currentTimeMillis();
+        try {
+            WebClient client = webClientBuilder.baseUrl(url).build();
+            String response = client.get()
+                    .exchangeToMono(res -> {
+                        // Any response (200 OK, 401 Unauthorized, 403 Forbidden, 404 Not Found) means microservice is UP & running!
+                        long latency = System.currentTimeMillis() - start;
+                        return org.springframework.web.reactive.function.client.ClientResponse.create(res.statusCode()).build()
+                                .bodyToMono(String.class)
+                                .defaultIfEmpty("OK")
+                                .map(body -> "< " + latency + "ms latency");
+                    })
+                    .block(java.time.Duration.ofMillis(1500));
+            return Map.of("status", "UP", "latency", response != null ? response : "< 10ms latency");
+        } catch (Exception e) {
+            return Map.of("status", "DOWN", "latency", "Offline / Unreachable");
+        }
+    }
+
     @GetMapping("/system/health")
-    @Operation(summary = "Get system health overview")
+    @Operation(summary = "Get system health overview dynamically")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getSystemHealth(@RequestHeader(value = "X-Velora-User-Role", required = false) String role) {
         requireAdmin(role);
-        return ResponseEntity.ok(ApiResponse.success("System health retrieved", Map.of("authService", "UP", "userService", "UP", "safetyService", "UP", "aiService", "UP", "notificationService", "UP", "policeService", "UP", "gateway", "UP")));
+        Map<String, Object> health = new java.util.HashMap<>();
+        health.put("gateway", checkService("API GATEWAY", "http://localhost:8080/actuator/health"));
+        health.put("authService", checkService("AUTH SERVICE", "http://localhost:8081/api/v1/auth/me"));
+        health.put("userService", checkService("USER SERVICE", "http://localhost:8082/api/v1/users/profile"));
+        health.put("safetyService", checkService("SAFETY SERVICE", "http://localhost:8083/api/v1/safety/safe-zones"));
+        health.put("aiService", checkService("AI / ML SERVICE", "http://localhost:8000/"));
+        health.put("notificationService", checkService("NOTIFICATION SERVICE", "http://localhost:8085/api/v1/notifications"));
+        health.put("policeService", checkService("POLICE SERVICE", "http://localhost:8086/api/v1/police/cases"));
+        health.put("adminService", Map.of("status", "UP", "latency", "< 2ms latency"));
+
+        return ResponseEntity.ok(ApiResponse.success("System health retrieved dynamically", health));
     }
 
     @GetMapping("/users")
@@ -238,6 +269,7 @@ public class AdminController {
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSafeZones(@RequestHeader(value = "X-Velora-User-Role", required = false) String role) {
         requireAdmin(role);
         List<Map<String, Object>> result = new java.util.ArrayList<>();
+        Set<String> seenKeys = new java.util.HashSet<>();
 
         // 1. Query live ML marked zones from velora-ml-service
         try {
@@ -250,7 +282,18 @@ public class AdminController {
             if (response != null && response.get("data") instanceof List mlList) {
                 for (Object obj : mlList) {
                     if (obj instanceof Map m) {
-                        result.add((Map<String, Object>) m);
+                        Map<String, Object> map = (Map<String, Object>) m;
+                        double lat = map.get("latitude") instanceof Number n ? n.doubleValue() : (map.get("lat") instanceof Number n2 ? n2.doubleValue() : 0.0);
+                        double lng = map.get("longitude") instanceof Number n ? n.doubleValue() : (map.get("lng") instanceof Number n2 ? n2.doubleValue() : 0.0);
+                        String coordKey = String.format(java.util.Locale.US, "coord:%.3f,%.3f", lat, lng);
+                        String nameVal = map.get("name") != null ? map.get("name").toString() : (map.get("description") != null ? map.get("description").toString() : "");
+                        String nameKey = "name:" + nameVal.trim().toLowerCase();
+
+                        if (!seenKeys.contains(coordKey) && !seenKeys.contains(nameKey)) {
+                            seenKeys.add(coordKey);
+                            if (!nameVal.isEmpty()) seenKeys.add(nameKey);
+                            result.add(map);
+                        }
                     }
                 }
             }
@@ -261,8 +304,24 @@ public class AdminController {
         // 2. Query MySQL safe_zones table via JdbcTemplate
         try {
             List<Map<String, Object>> dbZones = jdbcTemplate.query(
-                "SELECT id, name, description, zone_type, latitude, longitude, radius_meters, is_verified, is_active, safety_score FROM safe_zones WHERE is_active = true",
+                "SELECT id, name, description, zone_type, latitude, longitude, radius_meters, is_verified, is_active, safety_score FROM safe_zones WHERE is_active = true ORDER BY id DESC",
                 (rs, rowNum) -> {
+                    double lat = rs.getDouble("latitude");
+                    double lng = rs.getDouble("longitude");
+                    String nameVal = rs.getString("name");
+                    String descVal = rs.getString("description");
+                    String title = nameVal != null && !nameVal.isEmpty() ? nameVal : (descVal != null ? descVal : "");
+
+                    String coordKey = String.format(java.util.Locale.US, "coord:%.3f,%.3f", lat, lng);
+                    String nameKey = "name:" + title.trim().toLowerCase();
+
+                    if (seenKeys.contains(coordKey) || (!title.isEmpty() && seenKeys.contains(nameKey))) {
+                        return null; // Skip duplicate DB entry if ML zone already has it
+                    }
+
+                    seenKeys.add(coordKey);
+                    if (!title.isEmpty()) seenKeys.add(nameKey);
+
                     Map<String, Object> map = new java.util.HashMap<>();
                     int score = rs.getInt("safety_score");
                     String zone = "safe";
@@ -279,11 +338,11 @@ public class AdminController {
                         color = "#FFC107";
                     }
 
-                    map.put("id", "sz_" + rs.getLong("id"));
-                    map.put("name", rs.getString("name"));
-                    map.put("description", rs.getString("description"));
-                    map.put("latitude", rs.getDouble("latitude"));
-                    map.put("longitude", rs.getDouble("longitude"));
+                    map.put("id", "ml_zone_" + rs.getLong("id"));
+                    map.put("name", title);
+                    map.put("description", descVal);
+                    map.put("latitude", lat);
+                    map.put("longitude", lng);
                     map.put("radiusMeters", rs.getDouble("radius_meters"));
                     map.put("zone", zone);
                     map.put("level", level);
@@ -294,7 +353,11 @@ public class AdminController {
                     return map;
                 }
             );
-            result.addAll(dbZones);
+            for (Map<String, Object> dbz : dbZones) {
+                if (dbz != null) {
+                    result.add(dbz);
+                }
+            }
         } catch (Exception e) {
             // Table might not exist yet or empty
         }
@@ -424,17 +487,6 @@ public class AdminController {
                 )
         );
         return ResponseEntity.ok(ApiResponse.success("Platform analytics retrieved", analytics));
-    }
-
-    @GetMapping("/audit-logs")
-    @Operation(summary = "Get platform audit logs")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAuditLogs(@RequestHeader(value = "X-Velora-User-Role", required = false) String role) {
-        requireAdmin(role);
-        List<Map<String, Object>> logs = List.of(
-                Map.of("id", "log_1", "actorId", "usr_103", "actorName", "Admin Officer", "actorRole", "ROLE_ADMIN", "action", "VERIFIED_SAFEZONE", "targetResource", "Connaught Place Safe Zone", "ipAddress", "192.168.1.50", "timestamp", java.time.LocalDateTime.now().toString()),
-                Map.of("id", "log_2", "actorId", "usr_102", "actorName", "Insp. Rajesh Kumar", "actorRole", "ROLE_POLICE", "action", "DISPATCHED_UNIT", "targetResource", "SOS Alert #101", "ipAddress", "192.168.1.55", "timestamp", java.time.LocalDateTime.now().minusMinutes(15).toString())
-        );
-        return ResponseEntity.ok(ApiResponse.success("Audit logs retrieved", logs));
     }
 
     public AdminController(final WebClient.Builder webClientBuilder, final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {

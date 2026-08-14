@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "./AdminLayout";
-import { getAdminDashboardStats, getSystemHealth, getAdminAnalytics } from "../../api/adminApi";
+import { getAdminDashboardStats } from "../../api/adminApi";
 import {
   IoPeopleOutline,
   IoAlertCircleOutline,
@@ -12,44 +12,22 @@ import {
 
 function AdminDashboard() {
   const [stats, setStats] = useState({
-    totalUsers: 1247,
-    totalIncidents: 892,
-    activePoliceOfficers: 34,
-    safeZones: 156,
-    resolvedIncidents: 734,
-    pendingIncidents: 158,
-    newUsersThisMonth: 89,
-    systemHealth: "HEALTHY"
+    totalUsers: 0,
+    totalIncidents: 0,
+    activePoliceOfficers: 0,
+    safeZones: 0,
+    resolvedIncidents: 0,
+    pendingIncidents: 0,
+    underInvestigation: 0,
+    newUsersThisMonth: 0,
+    systemHealth: "LOADING"
   });
-
-  const [health, setHealth] = useState({
-    authService: "UP",
-    userService: "UP",
-    safetyService: "UP",
-    aiService: "UP",
-    notificationService: "UP",
-    policeService: "UP",
-    gateway: "UP"
-  });
-
-  const [analytics, setAnalytics] = useState(null);
 
   const fetchAdminData = async () => {
     try {
-      const [statsRes, healthRes, analyticsRes] = await Promise.allSettled([
-        getAdminDashboardStats(),
-        getSystemHealth(),
-        getAdminAnalytics()
-      ]);
-
-      if (statsRes.status === "fulfilled" && statsRes.value?.data) {
-        setStats((prev) => ({ ...prev, ...statsRes.value.data }));
-      }
-      if (healthRes.status === "fulfilled" && healthRes.value?.data) {
-        setHealth((prev) => ({ ...prev, ...healthRes.value.data }));
-      }
-      if (analyticsRes.status === "fulfilled" && analyticsRes.value?.data) {
-        setAnalytics(analyticsRes.value.data);
+      const statsRes = await getAdminDashboardStats();
+      if (statsRes?.data) {
+        setStats((prev) => ({ ...prev, ...statsRes.data }));
       }
     } catch (err) {
       console.error("Error fetching admin dashboard data:", err);
@@ -85,52 +63,9 @@ function AdminDashboard() {
             <Card title="Active Police Officers" value={stats.activePoliceOfficers} icon={<IoShieldCheckmarkOutline />} />
             <Card title="Verified Safe Zones" value={stats.safeZones} icon={<IoCheckmarkCircleOutline />} />
             <Card title="Pending Incidents" value={stats.pendingIncidents} icon={<IoAlertCircleOutline />} />
-            <Card title="Under Investigation" value={stats.underInvestigation || 4} icon={<IoTrendingUpOutline />} />
-            <Card title="Resolved Incidents" value={stats.resolvedIncidents || 2} icon={<IoCheckmarkCircleOutline />} />
+            <Card title="Under Investigation" value={stats.underInvestigation || 0} icon={<IoTrendingUpOutline />} />
+            <Card title="Resolved Incidents" value={stats.resolvedIncidents || 0} icon={<IoCheckmarkCircleOutline />} />
             <Card title="Platform Health" value={stats.systemHealth} icon={<IoPulseOutline />} />
-          </div>
-
-          <div className="section" style={{ display: "flex", gap: "20px", marginTop: "24px" }}>
-            {/* System Services Health Widget */}
-            <div className="box" style={{ flex: 1, background: "#1f2937", padding: "20px", borderRadius: "12px" }}>
-              <h2 style={{ color: "#f3f4f6", fontSize: "18px", marginBottom: "16px" }}>Microservices System Status</h2>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
-                {Object.entries(health).map(([service, statusVal]) => {
-                  const statusStr = typeof statusVal === "object" ? (statusVal?.status || "UP") : String(statusVal || "UP");
-                  return (
-                    <div key={service} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: "#111827", borderRadius: "8px", border: "1px solid #374151" }}>
-                      <span style={{ textTransform: "capitalize", fontSize: "14px", color: "#d1d5db" }}>{service.replace(/([A-Z])/g, ' $1')}</span>
-                      <span style={{ fontWeight: "bold", fontSize: "12px", color: statusStr === "UP" ? "#10b981" : "#ef4444" }}>
-                        ● {statusStr}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Platform Analytics Breakdown */}
-            <div className="box" style={{ flex: 1, background: "#1f2937", padding: "20px", borderRadius: "12px" }}>
-              <h2 style={{ color: "#f3f4f6", fontSize: "18px", marginBottom: "16px" }}>Monthly Safety Metrics</h2>
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #374151", paddingBottom: "8px" }}>
-                  <span>Monthly SOS Alerts</span>
-                  <strong style={{ color: "#ec4899" }}>{analytics?.totalSOSAlertsMonth || 142}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #374151", paddingBottom: "8px" }}>
-                  <span>Avg Police Dispatch Response</span>
-                  <strong style={{ color: "#60a5fa" }}>{analytics?.avgPoliceResponseTimeSec || 210} sec</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #374151", paddingBottom: "8px" }}>
-                  <span>Incident Resolution Rate</span>
-                  <strong style={{ color: "#34d399" }}>{analytics?.resolutionRatePercentage || 94.5}%</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>High Risk Zones Monitored</span>
-                  <strong style={{ color: "#fbbf24" }}>{analytics?.highRiskZonesCount || 8}</strong>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

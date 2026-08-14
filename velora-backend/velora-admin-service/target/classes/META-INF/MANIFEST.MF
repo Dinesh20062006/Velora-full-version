@@ -1,6 +1,6 @@
 Manifest-Version: 1.0
 Build-Jdk-Spec: 25
-Implementation-Title: Velora AI Service
+Implementation-Title: Velora Admin Service
 Implementation-Version: 1.0.0-SNAPSHOT
 Created-By: Maven Integration for Eclipse
 
