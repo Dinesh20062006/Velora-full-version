@@ -8,7 +8,13 @@ from typing import List, Optional
 import uvicorn
 import math
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
+from urllib.parse import unquote
+import string
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI(
     title="Velora ML Safety Microservice",
